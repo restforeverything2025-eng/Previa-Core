@@ -51,19 +51,19 @@ function createProduct(data = {}) {
 
   data = assertPlainObject(data, "Product");
 
-  return {
+  return Object.freeze({
 
-    ...PRODUCT_DEFAULTS,
+  ...PRODUCT_DEFAULTS,
 
-    ...data,
+  ...data,
 
-    price: Number(data.price ?? PRODUCT_DEFAULTS.price),
+  price: Number(data.price ?? PRODUCT_DEFAULTS.price),
 
-    sortOrder: Number(data.sortOrder ?? PRODUCT_DEFAULTS.sortOrder),
+  sortOrder: Number(data.sortOrder ?? PRODUCT_DEFAULTS.sortOrder),
 
-    featuredHome: Boolean(data.featuredHome)
+  featuredHome: Boolean(data.featuredHome)
 
-  };
+});
 
 }
 
