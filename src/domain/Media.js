@@ -48,3 +48,7 @@ function createMedia(data = {}) {
   };
 
 }
+
+export {
+  createMedia
+};

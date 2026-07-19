@@ -11,6 +11,16 @@
  * @param {Object} product
  * @returns {Array<string>}
  */
+
+import {
+  ERROR_CODES
+} from "../constants/index.js";
+
+import {
+  isObject,
+  isEmptyString
+} from "../utils/index.js";
+
 function validateProduct(product) {
 
   const errors = [];
@@ -56,3 +66,8 @@ function validateProduct(product) {
   return errors;
 
 }
+
+export {
+  validateProduct
+};
+

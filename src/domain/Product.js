@@ -60,3 +60,7 @@ function createProduct(data = {}) {
   };
 
 }
+
+export {
+  createProduct
+};

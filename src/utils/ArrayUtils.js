@@ -57,3 +57,10 @@ function unique(array) {
     : [];
 
 }
+
+export {
+  isArray,
+  isEmptyArray,
+  cloneArray,
+  unique
+};

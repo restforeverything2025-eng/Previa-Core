@@ -18,3 +18,7 @@ const PRODUCT_STATUS = Object.freeze({
   ARCHIVED: "archived"
 
 });
+
+export {
+  PRODUCT_STATUS
+};

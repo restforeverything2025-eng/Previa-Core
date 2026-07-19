@@ -66,3 +66,11 @@ function toLower(value) {
   return trim(value).toLowerCase();
 
 }
+
+export {
+  isString,
+  trim,
+  isEmptyString,
+  toUpper,
+  toLower
+};

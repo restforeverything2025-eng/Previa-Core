@@ -40,3 +40,7 @@ function createCategory(data = {}) {
   };
 
 }
+
+export {
+  createCategory
+};

@@ -1,20 +1,10 @@
 /**
  * ============================================================
  * PREVIA Core
- * Supported Currencies
+ * Services
+ * Public API
  * ============================================================
  */
 
-const CURRENCY = Object.freeze({
-
-  UAH: "UAH",
-
-  USD: "USD",
-
-  EUR: "EUR"
-
-});
-
-export {
-  CURRENCY
-};
+export * from "./ProductValidator.js";
+export * from "./ValidationService.js";

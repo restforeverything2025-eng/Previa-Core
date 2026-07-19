@@ -16,3 +16,7 @@ const CATEGORIES = Object.freeze({
   SALE: "SALE"
 
 });
+
+export {
+  CATEGORIES
+};

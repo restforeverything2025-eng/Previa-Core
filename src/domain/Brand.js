@@ -38,3 +38,7 @@ function createBrand(data = {}) {
   };
 
 }
+
+export {
+  createBrand
+};

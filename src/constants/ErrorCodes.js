@@ -11,3 +11,7 @@ const ERROR_CODES = Object.freeze({
   UNKNOWN_ENTITY: "UNKNOWN_ENTITY"
 
 });
+
+export {
+  ERROR_CODES
+};

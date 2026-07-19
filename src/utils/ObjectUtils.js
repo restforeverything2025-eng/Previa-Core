@@ -47,3 +47,9 @@ function cloneObject(obj) {
   };
 
 }
+
+export {
+  isObject,
+  isEmptyObject,
+  cloneObject
+};

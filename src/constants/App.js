@@ -12,3 +12,7 @@ const APP = Object.freeze({
   NAME: "PREVIA Core"
 
 });
+
+export {
+  APP
+};

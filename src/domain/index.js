@@ -1,20 +1,12 @@
 /**
  * ============================================================
  * PREVIA Core
- * Supported Currencies
+ * Domain Models
+ * Public API
  * ============================================================
  */
 
-const CURRENCY = Object.freeze({
-
-  UAH: "UAH",
-
-  USD: "USD",
-
-  EUR: "EUR"
-
-});
-
-export {
-  CURRENCY
-};
+export * from "./Product.js";
+export * from "./Brand.js";
+export * from "./Category.js";
+export * from "./Media.js";

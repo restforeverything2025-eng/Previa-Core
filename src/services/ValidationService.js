@@ -26,6 +26,14 @@
 
  */
 
+import {
+  ERROR_CODES
+} from "../constants/index.js";
+
+import {
+  validateProduct
+} from "./ProductValidator.js";
+
 function validate(type, entity) {
 
 
@@ -54,6 +62,8 @@ function validate(type, entity) {
 
   }
 
-
-
 }
+
+export {
+  validate
+};
