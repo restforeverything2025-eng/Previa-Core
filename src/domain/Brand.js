@@ -5,6 +5,10 @@
  * ============================================================
  */
 
+import {
+  assertPlainObject
+} from "../utils/FactoryUtils.js";
+
 const BRAND_DEFAULTS = Object.freeze({
 
   id: "",
@@ -22,10 +26,12 @@ const BRAND_DEFAULTS = Object.freeze({
 /**
  * Creates a Brand domain object.
  *
- * @param {Object} data
- * @returns {Object}
+ * @param {Object} [data={}] Initial brand data.
+ * @returns {Object} Brand domain object.
  */
 function createBrand(data = {}) {
+
+  data = assertPlainObject(data, "Brand");
 
   return {
 

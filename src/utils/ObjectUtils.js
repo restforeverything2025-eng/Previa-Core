@@ -13,9 +13,7 @@
  */
 function isObject(value) {
 
-  return value !== null &&
-         typeof value === "object" &&
-         !Array.isArray(value);
+  return Object.prototype.toString.call(value) === "[object Object]";
 
 }
 

@@ -5,6 +5,10 @@
  * ============================================================
  */
 
+import {
+  assertPlainObject
+} from "../utils/FactoryUtils.js";
+
 const MEDIA_DEFAULTS = Object.freeze({
 
   id: "",
@@ -28,10 +32,12 @@ const MEDIA_DEFAULTS = Object.freeze({
 /**
  * Creates a Media domain object.
  *
- * @param {Object} data
- * @returns {Object}
+ * @param {Object} [data={}] Initial media data.
+ * @returns {Object} Media domain object.
  */
 function createMedia(data = {}) {
+
+  data = assertPlainObject(data, "Media");
 
   return {
 

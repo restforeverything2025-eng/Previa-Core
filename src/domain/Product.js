@@ -1,9 +1,13 @@
 /**
- * ============================================================
- * PREVIA Core
- * Domain Model: Product
- * ============================================================
+ * Creates a Product domain object.
+ *
+ * @param {Object} [data={}] Initial product data.
+ * @returns {Object} Product domain object.
  */
+
+import {
+  assertPlainObject
+} from "../utils/FactoryUtils.js";
 
 const PRODUCT_DEFAULTS = Object.freeze({
 
@@ -44,6 +48,8 @@ const PRODUCT_DEFAULTS = Object.freeze({
  * @returns {Object}
  */
 function createProduct(data = {}) {
+
+  data = assertPlainObject(data, "Product");
 
   return {
 
