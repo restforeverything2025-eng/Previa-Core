@@ -1,7 +1,10 @@
 {
-  "name": "@previa/core",
+  "name": "previa-core",
   "version": "0.1.0",
-  "description": "PREVIA Core Library",
+  "private": true,
   "type": "module",
-  "license": "MIT"
+  "scripts": {
+  "example": "node examples/basic.js",
+  "test:manual": "node tests/manual/product.test.js"
+}
 }
