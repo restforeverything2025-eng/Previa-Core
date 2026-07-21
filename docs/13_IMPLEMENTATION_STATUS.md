@@ -17,8 +17,17 @@ Version: 0.1.0
 
 #### Implemented
 
+##### Domain Models
+
+- Product
+- Brand
+- Category
+
+> Note:
+> Media is intentionally not implemented as a domain model.
+> Image paths belong to Product, while image processing is planned as a future service.
+
 - Constants
-- Domain Models
 - Utilities
 - Validation Service
 - Product Validator

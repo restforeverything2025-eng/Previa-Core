@@ -13,8 +13,6 @@ const BRAND_DEFAULTS = Object.freeze({
 
   id: "",
 
-  code: "",
-
   name: "",
 
   country: "",
@@ -24,24 +22,24 @@ const BRAND_DEFAULTS = Object.freeze({
 });
 
 /**
- * Creates a Brand domain object.
+ * Creates an immutable Brand domain object.
  *
  * @param {Object} [data={}] Initial brand data.
- * @returns {Object} Brand domain object.
+ * @returns {Object} Immutable Brand domain object.
  */
 function createBrand(data = {}) {
 
   data = assertPlainObject(data, "Brand");
 
-  return {
+  return Object.freeze({
 
-    ...BRAND_DEFAULTS,
+  ...BRAND_DEFAULTS,
 
-    ...data,
+  ...data,
 
-    enabled: Boolean(data.enabled)
+  enabled: Boolean(data.enabled ?? BRAND_DEFAULTS.enabled)
 
-  };
+});
 
 }
 
