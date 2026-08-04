@@ -197,3 +197,14 @@ Small, tested improvements are preferred over large rewrites.
 Infrastructure belongs to applications.
 
 Business logic belongs to Core.
+
+## Development Cycle
+
+Every feature follows the same order:
+
+1. Idea
+2. Documentation
+3. Architecture
+4. Implementation
+5. Validation
+6. Commit
