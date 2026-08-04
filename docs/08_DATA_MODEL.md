@@ -14,6 +14,7 @@ ecosystem.
 -   One domain model for all clients.
 -   One owner for every piece of data.
 -   Stable identifiers.
+-   Business rules are defined only in PREVIA Core.
 -   No duplicated business data.
 
 ------------------------------------------------------------------------
@@ -163,7 +164,12 @@ Customer ↓ Favorite ↓ Cart ↓ Order
 
 ------------------------------------------------------------------------
 
+## Core Contract
+
+PREVIA Core defines the canonical business contracts of the ecosystem.
+
+Applications implement these contracts but never redefine them.
+
 # Final Rule
 
-Every PREVIA application must use this shared data model without
-redefining business entities.
+Every PREVIA application speaks the same language by using this shared data model.

@@ -11,7 +11,15 @@ const CATEGORIES = Object.freeze({
 
   JEWELRY: "JEWELRY",
 
-  SKARB: "SKARB",
+  BAGS: "BAGS",
+
+  GLASSES: "GLASSES",
+
+  APPAREL: "APPAREL",
+
+  ARTWORK: "ARTWORK",
+
+  DECOR: "DECOR",
 
   SALE: "SALE"
 

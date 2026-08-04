@@ -7,15 +7,13 @@
 
 const PRODUCT_STATUS = Object.freeze({
 
-  DRAFT: "draft",
-
-  ACTIVE: "active",
+  AVAILABLE: "available",
 
   RESERVED: "reserved",
 
   SOLD: "sold",
 
-  ARCHIVED: "archived"
+  HIDDEN: "hidden"
 
 });
 

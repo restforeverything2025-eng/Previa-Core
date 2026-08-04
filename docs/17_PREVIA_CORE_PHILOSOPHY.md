@@ -181,3 +181,19 @@ These services will only be introduced when they solve real problems.
 # Final Principle
 
 PREVIA Core grows by solving real problems, not by predicting imaginary ones.
+
+## Motto
+
+PREVIA grows by solving real problems.
+
+Architecture comes before implementation.
+
+Documentation comes before coding.
+
+One module has one responsibility.
+
+Small, tested improvements are preferred over large rewrites.
+
+Infrastructure belongs to applications.
+
+Business logic belongs to Core.

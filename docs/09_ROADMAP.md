@@ -153,6 +153,14 @@ Future capabilities:
 
 ------------------------------------------------------------------------
 
+### Future
+
+Replace SALE category with Product.sale flag.
+
+SALE should become a business attribute rather than a product category.
+
+------------------------------------------------------------------------
+
 # Vision
 
 PREVIA evolves into a reusable commerce platform where multiple
