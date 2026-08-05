@@ -8,3 +8,4 @@
 
 export * from "./ProductValidator.js";
 export * from "./ValidationService.js";
+export * from "./FavoritesService.js";
