@@ -1,83 +1,46 @@
-# PREVIA Customer Contract
+# Customer Contract
 
-## Purpose
+## Customer
 
-Customer represents a person known to the PREVIA ecosystem.
+Customer is the business representation of a person.
 
-A Customer is independent of any authentication provider.
-
-Telegram is currently the primary identity provider, but the model must remain platform independent.
+Customer never depends on Telegram or any other provider.
 
 ---
 
-# Identity
+## Required Fields
 
-## Required
-
-telegramId
-
-## Optional
-
-username
-
-displayName
-
-languageCode
+- id
+- displayName
+- provider
+- providerId
 
 ---
 
-# Lifecycle
+## Optional Fields
 
-firstSeen
-
-lastSeen
-
-status
-
----
-
-# Customer Data
-
-favorites
-
-orders
-
-notes
+- username
+- avatar
+- language
+- createdAt
+- updatedAt
 
 ---
 
-# Preferences
+## Customer Capabilities
 
-currency
+Customer can:
 
-locale
+- own Favorites
+- own Search Requests
+- own Reservations
 
-notifications
-
----
-
-# Rules
-
-- telegramId is immutable.
-- Customer may exist without orders.
-- Customer may exist without favorites.
-- Favorites belong to Customer.
-- Orders belong to Customer.
-- Customer never stores Telegram API objects.
-- Customer never stores UI state.
-- Customer does not know where data is stored.
-- Identity provider may change without changing the Customer model.
+Customer never stores business logic.
 
 ---
 
-# Future
+## Architecture Rule
 
-Possible future identity providers:
+Applications authenticate.
 
-- Telegram
-- Email
-- Google
-- Apple
-- Local PREVIA Account
-
-The Customer contract must remain unchanged regardless of the authentication method.
+Core identifies Customers.
