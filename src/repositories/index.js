@@ -1,13 +1,10 @@
 /**
  * ============================================================
  * PREVIA Core
- * Domain Models
+ * Repositories
  * Public API
  * ============================================================
  */
 
-export * from "./Product.js";
-export * from "./Brand.js";
-export * from "./Category.js";
-export * from "./Order.js";
-export * from "./OrderItem.js";
+export * from "./OrderRepository.js";
+export * from "./MemoryOrderRepository.js";

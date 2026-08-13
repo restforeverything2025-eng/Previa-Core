@@ -34,6 +34,10 @@ import {
   validateProduct
 } from "./ProductValidator.js";
 
+import {
+  validateOrder
+} from "./OrderValidator.js";
+
 function validate(type, entity) {
 
 
@@ -46,7 +50,9 @@ function validate(type, entity) {
 
       return validateProduct(entity);
 
+    case "order":
 
+      return validateOrder(entity);
 
     default:
 
