@@ -15,6 +15,8 @@
  * ============================================================
  */
 
+import { randomUUID } from "crypto";
+
 import {
   Order,
   OrderItem
@@ -24,6 +26,10 @@ import {
   validate
 } from "./ValidationService.js";
 
+import {
+  ORDER_DEFAULTS
+} from "../constants/OrderDefaults.js";
+
 
 class OrderService {
 
@@ -31,6 +37,7 @@ class OrderService {
 
     this.repository = repository;
   }
+
 
 
   createOrder(data = {}) {
@@ -47,13 +54,29 @@ class OrderService {
 
     }
 
+    // Generate server-side order_id (ORD-<UUIDv4>)
+    const orderId = "ORD-" + randomUUID();
 
+    // Generate server-side created_at (ISO 8601 UTC)
+    const createdAt = new Date().toISOString();
+
+    // Create Order with server-generated values and defaults
     const order =
       new Order({
         ...data,
 
-        created_at:
-          data.created_at || new Date()
+        order_id: orderId,
+
+        created_at: createdAt,
+
+        // Enforce defaults (app cannot override)
+        source: ORDER_DEFAULTS.source,
+
+        payment_type: ORDER_DEFAULTS.payment_type,
+
+        order_status: ORDER_DEFAULTS.order_status,
+
+        payment_status: ORDER_DEFAULTS.payment_status
       });
 
 
