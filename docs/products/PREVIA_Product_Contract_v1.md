@@ -16,6 +16,8 @@ The contract defines the business representation of a product.
 
 It does not define how the product is stored or displayed.
 
+A Canonical Product is not the same thing as a Public Product representation.
+
 ---
 
 ## 2. Ownership
@@ -57,11 +59,16 @@ The canonical Product contains:
 | `description` | No | Product description |
 | `price` | Yes | Current product price |
 | `currency` | Yes | Price currency |
-| `status` | Yes | Product availability/status |
-| `featured` | No | Featured product flag |
-| `dateAdded` | No | Date product was added |
+| `status` | Yes | Product business state |
+| `featuredHome` | No | Flag indicating that the product may be featured on the home page |
 | `sortOrder` | No | Manual display order |
+| `dateAdded` | No | Date product was added |
+| `eraFrom` | No | Beginning of the known/estimated product era |
+| `eraTo` | No | End of the known/estimated product era |
+| `media` | No | Product media collection managed outside Core |
 | `notes` | No | Internal product notes |
+
+`media` is part of the Canonical Product domain representation, while its physical storage and transport are handled outside Core.
 
 ---
 
@@ -155,15 +162,37 @@ Clients display the supplied currency.
 
 `status` represents the business state of the Product.
 
-The exact allowed status values are defined by PREVIA Core validation rules.
+The status must be present and non-empty.
+
+The exact allowed status values are defined by PREVIA Core status rules.
 
 Clients must not create new status values independently.
 
 ---
 
-## 10. Media
+## 10. Featured Home
 
-Product images are owned by the Product relationship.
+`featuredHome` is an internal Product flag used to indicate whether a product may be selected for home-page featuring.
+
+It is part of the Canonical Product because the concept belongs to the Product domain.
+
+It does not have to be included in every Public Product representation.
+
+---
+
+## 11. Era
+
+`eraFrom` and `eraTo` describe the known or estimated time range associated with a vintage Product.
+
+Both fields are optional because the era may be unknown or only partially known.
+
+Clients may present these values when they are available, but must not invent or alter their meaning.
+
+---
+
+## 12. Media
+
+Product media belongs to the Product relationship.
 
 Media itself is stored outside Core:
 
@@ -177,6 +206,10 @@ GitHub published media
 Client
 ```
 
+The Canonical Product uses `media` as its domain-level media representation.
+
+A Public Product may transform this into another representation, such as `images`.
+
 Images are identified through Product SKU.
 
 A Product may have multiple images.
@@ -185,7 +218,7 @@ Image ordering is part of the published Product representation.
 
 ---
 
-## 11. Product Availability
+## 13. Product Availability
 
 Availability is a business concept.
 
@@ -197,14 +230,14 @@ The CMS provides the underlying product data required by Core.
 
 ---
 
-## 12. Client Representation
+## 14. Client Representation
 
-A client may transform the Product for presentation.
+A client may transform the Canonical Product for presentation.
 
 For example:
 
 ```text
-Core Product
+Canonical Product
     ↓
 Website Card
 ```
@@ -212,16 +245,24 @@ Website Card
 or:
 
 ```text
-Core Product
+Canonical Product
     ↓
 Telegram Product Message
 ```
 
 Such transformations must not change the underlying Product meaning.
 
+The Public Product representation is allowed to contain only the fields needed by the client.
+
+Therefore:
+
+```text
+Canonical Product ≠ Public Product
+```
+
 ---
 
-## 13. Storage Representation
+## 15. Storage Representation
 
 Google Sheets may contain additional technical or administrative columns.
 
@@ -236,6 +277,8 @@ Google Sheets Product
         ↓
 Canonical Product
         ↓
+ Public Product
+        ↓
       Client
 ```
 
@@ -243,7 +286,7 @@ Storage-specific fields must remain storage-specific unless explicitly added to 
 
 ---
 
-## 14. Single Source of Truth
+## 16. Single Source of Truth
 
 The ownership model is:
 
@@ -269,23 +312,26 @@ Presentation
 Client
 ```
 
+The existence of a Public Product representation does not create a second authoritative Product model.
+
 ---
 
-## 15. Forbidden Behaviour
+## 17. Forbidden Behaviour
 
 The following is prohibited:
 
 - duplicate Product business rules in clients;
 - manually changing generated IDs;
 - manually changing generated SKUs;
-- creating alternative Product models for individual clients;
+- creating alternative authoritative Product models for individual clients;
 - storing independent authoritative Product copies;
 - changing Product status semantics in the frontend;
-- calculating business availability independently in a client.
+- calculating business availability independently in a client;
+- treating the Public Product representation as the canonical Product domain model.
 
 ---
 
-## 16. Product Lifecycle
+## 18. Product Lifecycle
 
 The canonical lifecycle is:
 
@@ -300,7 +346,7 @@ PREVIA Core validation
     ↓
 Publication
     ↓
-data.js
+Public Product / data.js
     ↓
 Client
 ```
@@ -317,7 +363,7 @@ Order
 
 ---
 
-## 17. Versioning
+## 19. Versioning
 
 This document defines Product Contract v1.
 
@@ -327,14 +373,14 @@ Backward-compatible additions may be introduced without changing existing field 
 
 ---
 
-## 18. Final Rule
+## 20. Final Rule
 
-There is only one PREVIA Product.
+There is only one PREVIA Product domain meaning.
 
-CMS stores it.
+CMS stores and transports product data.
 
-Core defines its meaning and business rules.
+Core defines the Canonical Product meaning and business rules.
 
-Clients present it.
+Clients consume a Public Product representation derived from the Canonical Product.
 
-No application may create a competing interpretation of the Product.
+No application may create a competing authoritative interpretation of the Product.
