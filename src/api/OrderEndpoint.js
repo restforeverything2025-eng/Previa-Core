@@ -85,7 +85,10 @@ class OrderEndpoint {
           error.retryable || false,
 
         message:
-          error.message || "Order operation failed"
+          error.message || "Order operation failed",
+
+        details:
+          error.details || []
       };
 
     }

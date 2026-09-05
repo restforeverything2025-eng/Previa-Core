@@ -20,7 +20,7 @@ class Order {
 
     this.source = data.source || "";
 
-    this.customerId = data.customerId || null;
+    this.customerId = data.customerId || "";
 
     this.provider = data.provider || "";
 
@@ -40,6 +40,11 @@ class Order {
 
     this.email =
       data.email || "";
+    
+    this.contact_preferences =
+      Array.isArray(data.contact_preferences)
+        ? data.contact_preferences
+        : [];
 
     this.payment_type =
       data.payment_type || "";
@@ -60,13 +65,13 @@ class Order {
       data.total || 0;
 
     this.expires_at =
-      data.expires_at || null;
+      data.expires_at || "";
 
     this.paid_at =
-      data.paid_at || null;
+      data.paid_at || "";
 
     this.document_url =
-      data.document_url || null;
+      data.document_url || "";
 
     this.note =
       data.note || "";

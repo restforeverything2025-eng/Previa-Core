@@ -54,7 +54,7 @@ class CmsOrderRepository extends OrderRepository {
 
       error.code = response.code;
       error.retryable = response.retryable || false;
-
+      error.details = response.errors || [];
       throw error;
     }
 

@@ -150,46 +150,121 @@ console.assert(
 );
 console.log("✓ All defaults correctly enforced\n");
 
-// ========================================
-// TEST 4: Telegram-Only Constraint
-// ========================================
-console.log("TEST 4: Telegram-only constraint");
-console.log("--------------------------------");
+// ==========================================
+// TEST 4: Provider validation
+// ==========================================
 
-try {
-  validateOrder({
-    provider: "google", // Not telegram!
-    providerId: "123",
-    telegram_name: "User",
-    customer_name: "User",
-    phone: "+380123456789",
-    email: "user@example.com",
-    payment_method: "card",
-    items: [{ sku: "X", title: "X", price: 100, quantity: 1 }]
-  });
-  console.log("✗ Should have rejected non-telegram provider");
-} catch (e) {
-  // Not thrown, need to check errors differently
+console.log("\n## TEST 4: Provider validation");
+
+const validOrder = {
+  provider: "telegram",
+  providerId: "test-provider-id",
+  telegram_name: "Test User",
+  customer_name: "Test Customer",
+  phone: "+380000000000",
+  email: "test@example.com",
+  payment_method: "fop_details",
+  items: [
+    {
+      sku: "TEST-001",
+      title: "Test Product",
+      price: 1000,
+      quantity: 1
+    }
+  ]
+};
+
+// 4a. Telegram requires providerId and telegram_name
+
+const telegramWithoutIdentity = {
+  ...validOrder,
+  provider: "telegram",
+  providerId: "",
+  telegram_name: ""
+};
+
+const telegramErrors =
+  validate("order", telegramWithoutIdentity);
+
+console.log(
+  "4a. Telegram without identity:",
+  telegramErrors
+);
+
+if (
+  telegramErrors.includes(
+    "providerId is required for telegram"
+  ) &&
+  telegramErrors.includes(
+    "telegram_name is required for telegram"
+  )
+) {
+  console.log(
+    "✓ Telegram identity requirements enforced"
+  );
+} else {
+  console.log(
+    "✗ Telegram identity requirements failed"
+  );
 }
 
-const errors4 = validateOrder({
-  provider: "google",
-  providerId: "123",
-  telegram_name: "User",
-  customer_name: "User",
-  phone: "+380123456789",
-  email: "user@example.com",
-  payment_method: "card",
-  items: [{ sku: "X", title: "X", price: 100, quantity: 1 }]
-});
 
-console.log("Validation errors for non-telegram provider:");
-console.log(errors4);
-console.assert(
-  errors4.some(e => e.includes("telegram")),
-  "Should reject non-telegram provider"
+// 4b. Web order does not require Telegram identity
+
+const webOrder = {
+  ...validOrder,
+  provider: "web",
+  providerId: "",
+  telegram_name: ""
+};
+
+const webErrors =
+  validate("order", webOrder);
+
+console.log(
+  "4b. Web order without Telegram identity:",
+  webErrors
 );
-console.log("✓ Non-telegram provider correctly rejected\n");
+
+if (webErrors.length === 0) {
+  console.log(
+    "✓ Web order correctly accepted without Telegram identity"
+  );
+} else {
+  console.log(
+    "✗ Web order should be accepted"
+  );
+}
+
+
+// 4c. Unknown provider must be rejected
+
+const unknownProviderOrder = {
+  ...validOrder,
+  provider: "instagram"
+};
+
+const unknownProviderErrors =
+  validate("order", unknownProviderOrder);
+
+console.log(
+  "4c. Unknown provider:",
+  unknownProviderErrors
+);
+
+if (
+  unknownProviderErrors.includes(
+    "provider must be 'telegram' or 'web'"
+  )
+) {
+  console.log(
+    "✓ Unknown provider correctly rejected"
+  );
+} else {
+  console.log(
+    "✗ Unknown provider should be rejected"
+  );
+}
 
 // ========================================
 // TEST 5: telegram_name Required
@@ -476,6 +551,264 @@ console.assert(
   "Retrieved order_id should match"
 );
 console.log("✓ MemoryOrderRepository works with Phase 1\n");
+
+// ==========================================
+// TEST 12: Contact preferences validation
+// ==========================================
+
+console.log("\n## TEST 12: Contact preferences validation");
+
+// 12a. Empty array is valid
+
+const noContactPreference = {
+  ...validOrder,
+  provider: "web",
+  contact_preferences: []
+};
+
+const noContactErrors =
+  validate("order", noContactPreference);
+
+console.log(
+  "12a. Empty contact preferences:",
+  noContactErrors
+);
+
+if (noContactErrors.length === 0) {
+  console.log(
+    "✓ Empty contact preferences accepted"
+  );
+} else {
+  console.log(
+    "✗ Empty contact preferences should be accepted"
+  );
+}
+
+
+// 12b. Valid contact preferences
+
+const validContactPreference = {
+  ...validOrder,
+  provider: "web",
+  contact_preferences: [
+    "telegram",
+    "viber",
+    "call"
+  ]
+};
+
+const validContactErrors =
+  validate("order", validContactPreference);
+
+console.log(
+  "12b. Valid contact preferences:",
+  validContactErrors
+);
+
+if (validContactErrors.length === 0) {
+  console.log(
+    "✓ Valid contact preferences accepted"
+  );
+} else {
+  console.log(
+    "✗ Valid contact preferences should be accepted"
+  );
+}
+
+
+// 12c. Non-array value must be rejected
+
+const invalidContactType = {
+  ...validOrder,
+  provider: "web",
+  contact_preferences: "telegram"
+};
+
+const invalidTypeErrors =
+  validate("order", invalidContactType);
+
+console.log(
+  "12c. Invalid contact preferences type:",
+  invalidTypeErrors
+);
+
+if (
+  invalidTypeErrors.includes(
+    "contact_preferences must be an array"
+  )
+) {
+  console.log(
+    "✓ Invalid contact preferences type rejected"
+  );
+} else {
+  console.log(
+    "✗ Invalid contact preferences type should be rejected"
+  );
+}
+
+
+// 12d. Unknown contact channel must be rejected
+
+const invalidContactValue = {
+  ...validOrder,
+  provider: "web",
+  contact_preferences: [
+    "telegram",
+    "whatsapp"
+  ]
+};
+
+const invalidValueErrors =
+  validate("order", invalidContactValue);
+
+console.log(
+  "12d. Invalid contact preference value:",
+  invalidValueErrors
+);
+
+if (
+  invalidValueErrors.includes(
+    "contact_preferences contains invalid value(s)"
+  )
+) {
+  console.log(
+    "✓ Invalid contact preference value rejected"
+  );
+} else {
+  console.log(
+    "✗ Invalid contact preference value should be rejected"
+  );
+}
+
+// ==========================================
+// TEST 13: OrderItem composition
+// ==========================================
+
+console.log("\n## TEST 13: OrderItem composition");
+
+const orderItemInput = {
+  order_id: "ORD-TEST-001",
+  sku: "TEST-001",
+  title: "Test Product",
+  price: 1500,
+  quantity: 1,
+  subtotal: 1500
+};
+
+const orderItem = new OrderItem(orderItemInput);
+
+console.log("Created OrderItem:", orderItem);
+
+if (
+  orderItem.order_id === "ORD-TEST-001" &&
+  orderItem.sku === "TEST-001" &&
+  orderItem.title === "Test Product" &&
+  orderItem.price === 1500 &&
+  orderItem.quantity === 1 &&
+  orderItem.subtotal === 1500
+) {
+  console.log(
+    "✓ OrderItem fields correctly composed"
+  );
+} else {
+  console.log(
+    "✗ OrderItem fields composition failed"
+  );
+}
+
+
+// 13b. OrderService calculates subtotal
+
+const serviceOrder = {
+  ...validOrder,
+  provider: "web",
+  contact_preferences: [],
+  items: [
+    {
+      sku: "TEST-002",
+      title: "Another Product",
+      price: 2500,
+      quantity: 1
+    }
+  ]
+};
+
+const serviceResult =
+  service1.createOrder(serviceOrder);
+
+console.log(
+  "OrderItem created by OrderService:",
+  serviceResult.items[0]
+);
+
+if (
+  serviceResult.items.length === 1 &&
+  serviceResult.items[0].sku === "TEST-002" &&
+  serviceResult.items[0].title === "Another Product" &&
+  serviceResult.items[0].price === 2500 &&
+  serviceResult.items[0].quantity === 1 &&
+  serviceResult.items[0].subtotal === 2500 &&
+  serviceResult.order.subtotal === 2500 &&
+  serviceResult.order.total === 2500
+) {
+  console.log(
+    "✓ OrderService correctly creates OrderItem and calculates totals"
+  );
+} else {
+  console.log(
+    "✗ OrderService OrderItem or totals failed"
+  );
+}
+
+// ==========================================
+// TEST 14: Contact preferences in Order
+// ==========================================
+
+console.log("\n## TEST 14: Contact preferences in Order");
+
+const orderWithContacts = {
+  ...validOrder,
+  provider: "web",
+  providerId: "",
+  telegram_name: "",
+  contact_preferences: [
+    "telegram",
+    "viber"
+  ],
+  items: [
+    {
+      sku: "TEST-003",
+      title: "Contact Test Product",
+      price: 3000,
+      quantity: 1
+    }
+  ]
+};
+
+const contactOrderResult =
+  service1.createOrder(orderWithContacts);
+
+console.log(
+  "Order contact_preferences:",
+  contactOrderResult.order.contact_preferences
+);
+
+if (
+  Array.isArray(
+    contactOrderResult.order.contact_preferences
+  ) &&
+  contactOrderResult.order.contact_preferences.length === 2 &&
+  contactOrderResult.order.contact_preferences[0] === "telegram" &&
+  contactOrderResult.order.contact_preferences[1] === "viber"
+) {
+  console.log(
+    "✓ contact_preferences correctly stored in Order"
+  );
+} else {
+  console.log(
+    "✗ contact_preferences were not stored correctly"
+  );
+}
 
 console.log("\n=== PHASE 1 TESTS COMPLETE ===\n");
 

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
   "example": "node examples/basic.js",
-  "test:manual": "node tests/manual/product.test.js"
+  "test:manual": "node tests/manual/product.test.js",
+  "start": "node src/runtime/server.js"
 }
 }

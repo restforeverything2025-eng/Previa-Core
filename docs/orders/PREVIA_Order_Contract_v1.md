@@ -22,6 +22,7 @@ Fields:
 - `customer_name` — customer name used for this order; required; stored as an order snapshot.
 - `phone` — customer phone for this order; required.
 - `email` — customer email for this order; required.
+- `contact_preferences` — preferred contact channels selected by the customer; optional; empty array when no preference is selected. Allowed values: `telegram`, `viber`, `call`.
 - `payment_type` — payment scenario/type.
 - `payment_method` — concrete payment method.
 - `payment_status` — payment lifecycle state.

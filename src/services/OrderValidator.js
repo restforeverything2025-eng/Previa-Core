@@ -15,20 +15,28 @@ function validateOrder(order = {}) {
 
   const errors = [];
 
-  // Provider validation (Telegram only for v1)
-  if (!order.provider) {
-    errors.push("provider is required");
-  } else if (order.provider !== "telegram") {
-    errors.push("provider must be 'telegram' (only option for v1)");
+  // Provider validation
+if (order.provider) {
+
+  if (order.provider === "telegram") {
+
+    if (!order.providerId) {
+      errors.push("providerId is required for telegram");
+    }
+
+    if (!order.telegram_name) {
+      errors.push("telegram_name is required for telegram");
+    }
+
+  } else if (order.provider !== "web") {
+
+    errors.push(
+      "provider must be 'telegram' or 'web'"
+    );
+
   }
 
-  if (!order.providerId) {
-    errors.push("providerId is required");
-  }
-
-  if (!order.telegram_name) {
-    errors.push("telegram_name is required");
-  }
+}
 
   if (!order.customer_name) {
     errors.push("customer_name is required");
@@ -40,6 +48,41 @@ function validateOrder(order = {}) {
 
   if (!order.email) {
     errors.push("email is required");
+  }
+  
+    // Contact preferences validation
+  if (order.contact_preferences !== undefined) {
+
+    if (!Array.isArray(order.contact_preferences)) {
+
+      errors.push(
+        "contact_preferences must be an array"
+      );
+
+    } else {
+
+      const allowedContactPreferences = [
+        "telegram",
+        "viber",
+        "call"
+      ];
+
+      const invalidPreferences =
+        order.contact_preferences.filter(
+          preference =>
+            !allowedContactPreferences.includes(preference)
+        );
+
+      if (invalidPreferences.length > 0) {
+
+        errors.push(
+          "contact_preferences contains invalid value(s)"
+        );
+
+      }
+
+    }
+
   }
 
   if (!order.payment_method) {
