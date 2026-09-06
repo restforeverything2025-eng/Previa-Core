@@ -45,19 +45,7 @@ class OrderService {
     if (this.repository) {
       const existing = await this.repository.findById(orderId);
       if (existing) {
-        const existingComparable = {
-          ...existing.order,
-          items: existing.items
-        };
-
-        if (!ordersEquivalent(existingComparable, { ...data, items: data.items })) {
-          const error = new Error("Idempotency key was already used for a different order");
-          error.code = "IDEMPOTENCY_CONFLICT";
-          error.retryable = false;
-          error.details = ["idempotency_key already belongs to another order"];
-          throw error;
-        }
-        return { order: existing.order, items: existing.items, idempotent: true };
+        return this._resolveExistingOrder(existing, data);
       }
     }
 
@@ -91,8 +79,38 @@ class OrderService {
   async saveOrder(data = {}) {
     const result = await this.createOrder(data);
     if (!this.repository || result.idempotent) return result;
-    await this.repository.save(result.order, result.items);
-    return result;
+
+    try {
+      await this.repository.save(result.order, result.items);
+      return result;
+    } catch (saveError) {
+      // A concurrent request may have persisted the same deterministic order
+      // between createOrder()'s findById() and this save(). Recover by reading
+      // the canonical order and treating the request as an idempotent retry.
+      const existing = await this.repository.findById(result.order.order_id);
+      if (!existing) throw saveError;
+      return this._resolveExistingOrder(existing, {
+        ...data,
+        items: result.items
+      });
+    }
+  }
+
+  _resolveExistingOrder(existing, requestedData) {
+    const existingComparable = {
+      ...existing.order,
+      items: existing.items
+    };
+
+    if (!ordersEquivalent(existingComparable, requestedData)) {
+      const error = new Error("Idempotency key was already used for a different order");
+      error.code = "IDEMPOTENCY_CONFLICT";
+      error.retryable = false;
+      error.details = ["idempotency_key already belongs to another order"];
+      throw error;
+    }
+
+    return { order: existing.order, items: existing.items, idempotent: true };
   }
 }
 
