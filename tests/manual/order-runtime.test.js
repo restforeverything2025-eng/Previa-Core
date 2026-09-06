@@ -8,7 +8,17 @@ let receivedEnvelope = null;
 const fakeTransport = {
   async post(envelope) {
     receivedEnvelope = envelope;
-    return { success: true, code: "ORDER_CREATED", order: { order_id: "ORD-TEST-001", created_at: "2026-09-05T00:00:00.000Z" }, items_count: 1 };
+
+    if (envelope.action === "order.find") {
+      return { success: true, order: null, items: [] };
+    }
+
+    return {
+      success: true,
+      code: "ORDER_CREATED",
+      order: { order_id: "ORD-TEST-001", created_at: "2026-09-05T00:00:00.000Z" },
+      items_count: 1
+    };
   }
 };
 
