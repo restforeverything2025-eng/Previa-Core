@@ -19,7 +19,12 @@ const endpoint = {
 
 const identityVerifier = {
   verify(initData) {
-    assert.equal(initData, "SIGNED_TELEGRAM_INIT_DATA");
+    if (initData !== "SIGNED_TELEGRAM_INIT_DATA") {
+      const error = new Error("Telegram initData is required.");
+      error.code = "AUTHENTICATION_ERROR";
+      error.retryable = false;
+      throw error;
+    }
 
     return {
       provider: "telegram",
