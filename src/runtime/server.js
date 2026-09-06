@@ -5,15 +5,6 @@
  * ============================================================
  *
  * Production entry point for PREVIA Core.
- *
- * Responsibilities:
- * - Receive HTTP requests
- * - Build Core application dependencies
- * - Pass order data to OrderHttpHandler
- * - Return JSON responses
- *
- * Does NOT contain business logic.
- *
  * ============================================================
  */
 
@@ -23,86 +14,63 @@ import {
   OrderService,
   CmsOrderRepository,
   OrderEndpoint,
-  OrderHttpHandler
+  OrderHttpHandler,
+  TelegramIdentityVerifier
 } from "../index.js";
 
-
-const PORT =
-  Number(process.env.PORT) || 3000;
-
-const CMS_URL =
-  process.env.PREVIA_CMS_URL;
-
-const HMAC_SECRET =
-  process.env.PREVIA_CORE_HMAC_SECRET;
-
+const PORT = Number(process.env.PORT) || 3000;
+const CMS_URL = process.env.PREVIA_CMS_URL;
+const HMAC_SECRET = process.env.PREVIA_CORE_HMAC_SECRET;
+const TELEGRAM_BOT_TOKEN = process.env.PREVIA_TELEGRAM_BOT_TOKEN;
+const TELEGRAM_INIT_DATA_MAX_AGE =
+  Number(process.env.PREVIA_TELEGRAM_INIT_DATA_MAX_AGE_SECONDS) || 86400;
 
 if (!CMS_URL) {
-  throw new Error(
-    "PREVIA_CMS_URL environment variable is required"
-  );
+  throw new Error("PREVIA_CMS_URL environment variable is required");
 }
-
 
 if (!HMAC_SECRET) {
-  throw new Error(
-    "PREVIA_CORE_HMAC_SECRET environment variable is required"
-  );
+  throw new Error("PREVIA_CORE_HMAC_SECRET environment variable is required");
 }
 
+if (!TELEGRAM_BOT_TOKEN) {
+  throw new Error("PREVIA_TELEGRAM_BOT_TOKEN environment variable is required");
+}
 
-/**
- * Core application composition.
- *
- * Dependency flow:
- *
- * OrderHttpHandler
- *       ↓
- * OrderEndpoint
- *       ↓
- * OrderService
- *       ↓
- * CmsOrderRepository
- *       ↓
- * Previa-CMS
- */
-const repository =
-  new CmsOrderRepository(
-    CMS_URL,
-    HMAC_SECRET
-  );
+const repository = new CmsOrderRepository(
+  CMS_URL,
+  HMAC_SECRET
+);
 
+const orderService = new OrderService(repository);
+const orderEndpoint = new OrderEndpoint(orderService);
+const identityVerifier = new TelegramIdentityVerifier(
+  TELEGRAM_BOT_TOKEN,
+  TELEGRAM_INIT_DATA_MAX_AGE
+);
+const orderHttpHandler = new OrderHttpHandler(
+  orderEndpoint,
+  identityVerifier
+);
 
-const orderService =
-  new OrderService(repository);
-
-
-const orderEndpoint =
-  new OrderEndpoint(orderService);
-
-
-const orderHttpHandler =
-  new OrderHttpHandler(orderEndpoint);
-
-
-/**
- * Reads request body.
- *
- * @param {http.IncomingMessage} request
- * @returns {Promise<Object>}
- */
 function readJsonBody(request) {
-
   return new Promise((resolve, reject) => {
-
     let body = "";
 
     request.on("data", chunk => {
       body += chunk;
+
+      // Protect the public endpoint from unexpectedly large request bodies.
+      if (Buffer.byteLength(body, "utf8") > 1024 * 1024) {
+        reject(Object.assign(
+          new Error("Request body is too large"),
+          { code: "PAYLOAD_TOO_LARGE" }
+        ));
+        request.destroy();
+      }
     });
 
     request.on("end", () => {
-
       if (!body) {
         resolve({});
         return;
@@ -111,112 +79,61 @@ function readJsonBody(request) {
       try {
         resolve(JSON.parse(body));
       } catch {
-        reject(
-          new Error("INVALID_JSON")
-        );
+        reject(new Error("INVALID_JSON"));
       }
-
     });
 
     request.on("error", reject);
-
   });
-
 }
 
-
-/**
- * Sends JSON response.
- */
 function sendJson(response, status, body) {
-
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8"
   });
 
-  response.end(
-    JSON.stringify(body)
-  );
-
+  response.end(JSON.stringify(body));
 }
 
+const server = http.createServer(async (request, response) => {
+  try {
+    if (request.method === "POST" && request.url === "/api/orders") {
+      const body = await readJsonBody(request);
 
-/**
- * HTTP server.
- */
-const server =
-  http.createServer(
-    async (request, response) => {
+      const result = await orderHttpHandler.create({
+        method: request.method,
+        body
+      });
 
-      try {
-
-        if (
-          request.method === "POST" &&
-          request.url === "/api/orders"
-        ) {
-
-          const body =
-            await readJsonBody(request);
-
-
-          const result =
-            await orderHttpHandler.create({
-              method: request.method,
-              body
-            });
-
-
-          sendJson(
-            response,
-            result.status,
-            result.body
-          );
-
-          return;
-        }
-
-
-        sendJson(
-          response,
-          404,
-          {
-            success: false,
-            code: "NOT_FOUND",
-            retryable: false,
-            message: "Endpoint not found"
-          }
-        );
-
-      } catch (error) {
-
-        sendJson(
-          response,
-          400,
-          {
-            success: false,
-            code:
-              error.message === "INVALID_JSON"
-                ? "INVALID_JSON"
-                : "INTERNAL_ERROR",
-            retryable: false,
-            message:
-              error.message || "Internal server error"
-          }
-        );
-
-      }
-
+      sendJson(response, result.status, result.body);
+      return;
     }
-  );
 
+    sendJson(response, 404, {
+      success: false,
+      code: "NOT_FOUND",
+      retryable: false,
+      message: "Endpoint not found"
+    });
+  } catch (error) {
+    const code = error.code ||
+      (error.message === "INVALID_JSON" ? "INVALID_JSON" : "INTERNAL_ERROR");
 
-server.listen(
-  PORT,
-  () => {
+    const status = code === "INVALID_JSON"
+      ? 400
+      : code === "PAYLOAD_TOO_LARGE"
+        ? 413
+        : 500;
 
-    console.log(
-      `PREVIA Core listening on port ${PORT}`
-    );
-
+    sendJson(response, status, {
+      success: false,
+      code,
+      retryable: false,
+      message: error.message || "Internal server error"
+    });
   }
-);
+});
+
+server.listen(PORT, () => {
+  console.log(`PREVIA Core listening on port ${PORT}`);
+});
