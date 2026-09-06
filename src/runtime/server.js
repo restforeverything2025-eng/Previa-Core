@@ -13,6 +13,8 @@ import http from "node:http";
 import {
   OrderService,
   CmsOrderRepository,
+  CmsProductRepository,
+  ProductOrderEnrichmentService,
   OrderEndpoint,
   OrderHttpHandler,
   TelegramIdentityVerifier
@@ -42,7 +44,15 @@ const repository = new CmsOrderRepository(
   HMAC_SECRET
 );
 
-const orderService = new OrderService(repository);
+const productRepository = new CmsProductRepository(CMS_URL);
+const productEnrichmentService = new ProductOrderEnrichmentService(
+  productRepository
+);
+
+const orderService = new OrderService(
+  repository,
+  productEnrichmentService
+);
 const orderEndpoint = new OrderEndpoint(orderService);
 const identityVerifier = new TelegramIdentityVerifier(
   TELEGRAM_BOT_TOKEN,
