@@ -46,11 +46,10 @@ const otherCustomer = await service.saveOrder({
 assert.notEqual(first.order.order_id, otherCustomer.order.order_id);
 assert.equal(repository.orders.size, 2);
 
-const keyValidation = await assert.rejects(
+await assert.rejects(
   () => service.saveOrder({ ...baseOrder, idempotency_key: "short" }),
   error => error.code === "VALIDATION_ERROR" && error.retryable === false
 );
-assert.equal(keyValidation, true);
 
 console.log("✓ Repeated request returns the original order");
 console.log("✓ Same key with changed payload is rejected");
