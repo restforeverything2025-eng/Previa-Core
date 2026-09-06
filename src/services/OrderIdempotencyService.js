@@ -63,10 +63,19 @@ function ordersEquivalent(left, right) {
     const leftItem = leftItems[i] || {};
     const rightItem = rightItems[i] || {};
 
-    const fields = ["sku", "title", "price", "quantity", "subtotal"];
-    for (const field of fields) {
+    for (const field of ["sku", "title", "price", "quantity"]) {
       if (String(leftItem[field] ?? "") !== String(rightItem[field] ?? "")) return false;
     }
+
+    // subtotal is derived by Core from price * quantity and may be omitted by the client.
+    const leftSubtotal = Number(leftItem.subtotal);
+    const rightPrice = Number(rightItem.price);
+    const rightQuantity = Number(rightItem.quantity ?? 1);
+    const rightSubtotal = Number.isFinite(rightPrice) && Number.isFinite(rightQuantity)
+      ? rightPrice * rightQuantity
+      : Number(rightItem.subtotal);
+
+    if (leftSubtotal !== rightSubtotal) return false;
   }
 
   return true;
