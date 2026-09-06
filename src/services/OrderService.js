@@ -6,12 +6,8 @@
  *
  * Handles Order creation and preparation.
  *
- * Does not know about:
- * - Google Sheets
- * - Telegram
- * - payments
- * - reservations
- * - notifications
+ * Product title/price are resolved from the authoritative
+ * product repository before totals are calculated.
  * ============================================================
  */
 
@@ -31,8 +27,9 @@ import {
 } from "../constants/OrderDefaults.js";
 
 class OrderService {
-  constructor(repository = null) {
+  constructor(repository = null, productEnrichmentService = null) {
     this.repository = repository;
+    this.productEnrichmentService = productEnrichmentService;
   }
 
   createOrder(data = {}) {
@@ -48,6 +45,37 @@ class OrderService {
       throw error;
     }
 
+    return this._buildCanonicalOrder(data, data.items);
+  }
+
+  async saveOrder(data = {}) {
+    if (this.productEnrichmentService) {
+      const enrichedItems =
+        await this.productEnrichmentService.enrichItems(data.items);
+
+      data = {
+        ...data,
+        items: enrichedItems
+      };
+    }
+
+    const result = this.createOrder(data);
+
+    if (!this.repository) {
+      return result;
+    }
+
+    await this.repository.save(
+      result.order,
+      result.items
+    );
+
+    // CMS returns an acknowledgement rather than the full canonical entity.
+    // Core remains the source of the generated order_id/timestamp/totals.
+    return result;
+  }
+
+  _buildCanonicalOrder(data, itemsData) {
     const orderId = "ORD-" + randomUUID();
     const createdAt = new Date().toISOString();
 
@@ -61,7 +89,7 @@ class OrderService {
       payment_status: ORDER_DEFAULTS.payment_status
     });
 
-    const items = (data.items || []).map(item => {
+    const items = (itemsData || []).map(item => {
       return new OrderItem({
         order_id: order.order_id,
         sku: item.sku,
@@ -81,23 +109,6 @@ class OrderService {
     order.total = subtotal;
 
     return { order, items };
-  }
-
-  async saveOrder(data = {}) {
-    const result = this.createOrder(data);
-
-    if (!this.repository) {
-      return result;
-    }
-
-    await this.repository.save(
-      result.order,
-      result.items
-    );
-
-    // CMS returns an acknowledgement rather than the full canonical entity.
-    // Core remains the source of the generated order_id/timestamp/totals.
-    return result;
   }
 }
 
