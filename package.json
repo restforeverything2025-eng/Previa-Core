@@ -11,7 +11,8 @@
     "test:order-http": "node tests/manual/order-http.test.js",
     "test:order-integration": "node tests/manual/order-integration.test.js",
     "test:order-products": "node tests/manual/order-product-authority.test.js",
-    "test:orders": "npm run test:telegram && npm run test:order-http && npm run test:order-runtime && npm run test:order-products",
+    "test:order-idempotency": "node tests/manual/order-idempotency.test.js",
+    "test:orders": "npm run test:telegram && npm run test:order-http && npm run test:order-runtime && npm run test:order-products && npm run test:order-idempotency",
     "start": "node src/runtime/server.js"
   }
 }
