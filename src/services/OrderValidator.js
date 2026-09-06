@@ -67,6 +67,7 @@ function validateOrder(order = {}) {
     "order_id",
     "created_at",
     "source",
+    "customerId",
     "payment_type",
     "payment_status",
     "order_status",
