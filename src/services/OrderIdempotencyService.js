@@ -36,10 +36,7 @@ function ordersEquivalent(left, right) {
   if (!left || !right) return false;
 
   const fields = [
-    "source", "customerId", "provider", "providerId", "telegram_username",
-    "telegram_name", "customer_name", "phone", "email", "payment_type",
-    "payment_method", "payment_status", "order_status", "subtotal", "total",
-    "expires_at", "paid_at", "document_url", "note"
+    "customer_name", "phone", "email", "payment_method", "telegram_username", "telegram_name", "provider", "providerId"
   ];
 
   for (const field of fields) {
