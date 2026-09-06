@@ -12,3 +12,4 @@ export * from "./FavoritesService.js";
 export * from "./OrderValidator.js";
 export * from "./OrderService.js";
 export * from "./ProductService.js";
+export * from "./ProductOrderEnrichmentService.js";
