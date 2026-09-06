@@ -4,8 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "example": "node examples/basic.js",
-  "test:manual": "node tests/manual/product.test.js",
-  "start": "node src/runtime/server.js"
-}
+    "example": "node examples/basic.js",
+    "test:manual": "node tests/manual/product.test.js",
+    "test:order-runtime": "node tests/manual/order-runtime.test.js",
+    "test:telegram": "node tests/manual/telegram-identity.test.js",
+    "test:order-integration": "node tests/manual/order-integration.test.js",
+    "start": "node src/runtime/server.js"
+  }
 }
