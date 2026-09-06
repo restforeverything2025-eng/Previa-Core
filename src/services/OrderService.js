@@ -1,30 +1,12 @@
 /**
- * ============================================================
- * PREVIA Core
- * Order Service
- * ============================================================
- *
- * Handles Order creation and preparation.
- *
- * Product title/price are resolved from the authoritative
- * product repository before totals are calculated.
- * ============================================================
+ * PREVIA Core - Order Service
+ * Handles canonical order creation and persistence.
  */
 
-import { randomUUID } from "crypto";
-
-import {
-  Order,
-  OrderItem
-} from "../domain/index.js";
-
-import {
-  validate
-} from "./ValidationService.js";
-
-import {
-  ORDER_DEFAULTS
-} from "../constants/OrderDefaults.js";
+import { Order, OrderItem } from "../domain/index.js";
+import { validate } from "./ValidationService.js";
+import { ORDER_DEFAULTS } from "../constants/OrderDefaults.js";
+import { createDeterministicOrderId, validateIdempotencyKey, ordersEquivalent } from "./OrderIdempotencyService.js";
 
 class OrderService {
   constructor(repository = null, productEnrichmentService = null) {
@@ -32,53 +14,49 @@ class OrderService {
     this.productEnrichmentService = productEnrichmentService;
   }
 
-  createOrder(data = {}) {
-    const errors = validate("order", data);
+  async createOrder(data = {}) {
+    if (this.productEnrichmentService) {
+      data = {
+        ...data,
+        items: await this.productEnrichmentService.enrichItems(data.items)
+      };
+    }
 
+    const errors = validate("order", data);
     if (errors.length > 0) {
-      const error = new Error(
-        "Order validation failed: " + errors.join(", ")
-      );
+      const error = new Error("Order validation failed: " + errors.join(", "));
       error.code = "VALIDATION_ERROR";
       error.retryable = false;
       error.details = errors;
       throw error;
     }
 
-    return this._buildCanonicalOrder(data, data.items);
-  }
-
-  async saveOrder(data = {}) {
-    if (this.productEnrichmentService) {
-      const enrichedItems =
-        await this.productEnrichmentService.enrichItems(data.items);
-
-      data = {
-        ...data,
-        items: enrichedItems
-      };
+    const keyError = validateIdempotencyKey(data.idempotency_key);
+    if (keyError) {
+      const error = new Error(keyError);
+      error.code = "VALIDATION_ERROR";
+      error.retryable = false;
+      error.details = [keyError];
+      throw error;
     }
 
-    const result = this.createOrder(data);
+    const orderId = createDeterministicOrderId(data.provider, data.providerId, data.idempotency_key);
 
-    if (!this.repository) {
-      return result;
+    if (this.repository) {
+      const existing = await this.repository.findById(orderId);
+      if (existing) {
+        if (!ordersEquivalent(existing.order, { ...data, items: data.items })) {
+          const error = new Error("Idempotency key was already used for a different order");
+          error.code = "IDEMPOTENCY_CONFLICT";
+          error.retryable = false;
+          error.details = ["idempotency_key already belongs to another order"];
+          throw error;
+        }
+        return { order: existing.order, items: existing.items, idempotent: true };
+      }
     }
 
-    await this.repository.save(
-      result.order,
-      result.items
-    );
-
-    // CMS returns an acknowledgement rather than the full canonical entity.
-    // Core remains the source of the generated order_id/timestamp/totals.
-    return result;
-  }
-
-  _buildCanonicalOrder(data, itemsData) {
-    const orderId = "ORD-" + randomUUID();
     const createdAt = new Date().toISOString();
-
     const order = new Order({
       ...data,
       order_id: orderId,
@@ -89,29 +67,28 @@ class OrderService {
       payment_status: ORDER_DEFAULTS.payment_status
     });
 
-    const items = (itemsData || []).map(item => {
-      return new OrderItem({
-        order_id: order.order_id,
-        sku: item.sku,
-        title: item.title,
-        price: item.price,
-        quantity: item.quantity,
-        subtotal: item.price * item.quantity
-      });
-    });
+    const items = data.items.map(item => new OrderItem({
+      order_id: order.order_id,
+      sku: item.sku,
+      title: item.title,
+      price: item.price,
+      quantity: item.quantity,
+      subtotal: item.price * item.quantity
+    }));
 
-    const subtotal = items.reduce(
-      (sum, item) => sum + item.subtotal,
-      0
-    );
-
+    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
     order.subtotal = subtotal;
     order.total = subtotal;
 
-    return { order, items };
+    return { order, items, idempotent: false };
+  }
+
+  async saveOrder(data = {}) {
+    const result = await this.createOrder(data);
+    if (!this.repository || result.idempotent) return result;
+    await this.repository.save(result.order, result.items);
+    return result;
   }
 }
 
-export {
-  OrderService
-};
+export { OrderService };
