@@ -45,7 +45,12 @@ class OrderService {
     if (this.repository) {
       const existing = await this.repository.findById(orderId);
       if (existing) {
-        if (!ordersEquivalent(existing.order, { ...data, items: data.items })) {
+        const existingComparable = {
+          ...existing.order,
+          items: existing.items
+        };
+
+        if (!ordersEquivalent(existingComparable, { ...data, items: data.items })) {
           const error = new Error("Idempotency key was already used for a different order");
           error.code = "IDEMPOTENCY_CONFLICT";
           error.retryable = false;
