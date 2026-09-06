@@ -35,12 +35,20 @@ function createDeterministicOrderId(provider, providerId, idempotencyKey) {
 function ordersEquivalent(left, right) {
   if (!left || !right) return false;
 
-  const fields = [
-    "customer_name", "phone", "email", "payment_method", "telegram_username", "telegram_name", "provider", "providerId"
+  const scalarFields = [
+    "customer_name",
+    "phone",
+    "email",
+    "payment_method",
+    "telegram_username",
+    "telegram_name",
+    "provider",
+    "providerId",
+    "note"
   ];
 
-  for (const field of fields) {
-    if ((left[field] ?? "") !== (right[field] ?? "")) return false;
+  for (const field of scalarFields) {
+    if (String(left[field] ?? "") !== String(right[field] ?? "")) return false;
   }
 
   const leftPreferences = Array.isArray(left.contact_preferences) ? left.contact_preferences : [];
@@ -52,8 +60,12 @@ function ordersEquivalent(left, right) {
   if (leftItems.length !== rightItems.length) return false;
 
   for (let i = 0; i < leftItems.length; i += 1) {
-    for (const field of ["sku", "title", "price", "quantity", "subtotal"]) {
-      if ((leftItems[i]?.[field] ?? "") !== (rightItems[i]?.[field] ?? "")) return false;
+    const leftItem = leftItems[i] || {};
+    const rightItem = rightItems[i] || {};
+
+    const fields = ["sku", "title", "price", "quantity", "subtotal"];
+    for (const field of fields) {
+      if (String(leftItem[field] ?? "") !== String(rightItem[field] ?? "")) return false;
     }
   }
 
