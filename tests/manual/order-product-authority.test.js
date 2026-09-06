@@ -6,7 +6,7 @@ import {
   OrderService
 } from "../../src/index.js";
 
-function baseOrder(items) {
+function baseOrder(items, idempotency_key) {
   return {
     provider: "telegram",
     providerId: "123456789",
@@ -17,6 +17,7 @@ function baseOrder(items) {
     email: "test@example.com",
     contact_preferences: ["telegram"],
     payment_method: "manual",
+    idempotency_key,
     items
   };
 }
@@ -50,7 +51,7 @@ async function run() {
       price: 1,
       quantity: 1
     }
-  ]));
+  ], "product-authority-test-001"));
 
   assert.equal(tampered.items[0].title, "Authoritative Watch");
   assert.equal(tampered.items[0].price, 1250);
@@ -65,7 +66,7 @@ async function run() {
         price: 1,
         quantity: 1
       }
-    ])),
+    ], "product-authority-test-002")),
     error => error.code === "VALIDATION_ERROR" && error.retryable === false
   );
   console.log("✓ Unknown SKU rejected");
@@ -78,7 +79,7 @@ async function run() {
         price: 900,
         quantity: 1
       }
-    ])),
+    ], "product-authority-test-003")),
     error => error.code === "VALIDATION_ERROR" && error.retryable === false
   );
   console.log("✓ Unavailable SKU rejected");
