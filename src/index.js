@@ -18,7 +18,7 @@ export * from "./repositories/index.js";
 export * from "./utils/index.js";
 
 // Identity
-export * from "./identity/index.js";
+export * from "./Identity/index.js";
 
 // API
 export * from "./api/OrderEndpoint.js";
