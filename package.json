@@ -8,7 +8,9 @@
     "test:manual": "node tests/manual/product.test.js",
     "test:order-runtime": "node tests/manual/order-runtime.test.js",
     "test:telegram": "node tests/manual/telegram-identity.test.js",
+    "test:order-http": "node tests/manual/order-http.test.js",
     "test:order-integration": "node tests/manual/order-integration.test.js",
+    "test:orders": "npm run test:telegram && npm run test:order-http && npm run test:order-runtime",
     "start": "node src/runtime/server.js"
   }
 }
