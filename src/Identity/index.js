@@ -7,3 +7,4 @@
  */
 
 export * from "./IdentityProvider.js";
+export * from "./TelegramIdentityVerifier.js";
