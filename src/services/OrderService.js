@@ -30,123 +30,76 @@ import {
   ORDER_DEFAULTS
 } from "../constants/OrderDefaults.js";
 
-
 class OrderService {
-
   constructor(repository = null) {
-
     this.repository = repository;
   }
 
-
-
   createOrder(data = {}) {
-
-    const errors =
-      validate("order", data);
+    const errors = validate("order", data);
 
     if (errors.length > 0) {
-
-      throw new Error(
-        "Order validation failed: " +
-        errors.join(", ")
+      const error = new Error(
+        "Order validation failed: " + errors.join(", ")
       );
-
+      error.code = "VALIDATION_ERROR";
+      error.retryable = false;
+      error.details = errors;
+      throw error;
     }
 
-    // Generate server-side order_id (ORD-<UUIDv4>)
     const orderId = "ORD-" + randomUUID();
-
-    // Generate server-side created_at (ISO 8601 UTC)
     const createdAt = new Date().toISOString();
 
-    // Create Order with server-generated values and defaults
-    const order =
-      new Order({
-        ...data,
+    const order = new Order({
+      ...data,
+      order_id: orderId,
+      created_at: createdAt,
+      source: ORDER_DEFAULTS.source,
+      payment_type: ORDER_DEFAULTS.payment_type,
+      order_status: ORDER_DEFAULTS.order_status,
+      payment_status: ORDER_DEFAULTS.payment_status
+    });
 
-        order_id: orderId,
-
-        created_at: createdAt,
-
-        // Enforce defaults (app cannot override)
-        source: ORDER_DEFAULTS.source,
-
-        payment_type: ORDER_DEFAULTS.payment_type,
-
-        order_status: ORDER_DEFAULTS.order_status,
-
-        payment_status: ORDER_DEFAULTS.payment_status
+    const items = (data.items || []).map(item => {
+      return new OrderItem({
+        order_id: order.order_id,
+        sku: item.sku,
+        title: item.title,
+        price: item.price,
+        quantity: item.quantity,
+        subtotal: item.price * item.quantity
       });
+    });
 
+    const subtotal = items.reduce(
+      (sum, item) => sum + item.subtotal,
+      0
+    );
 
-    const items =
-      (data.items || []).map(item => {
+    order.subtotal = subtotal;
+    order.total = subtotal;
 
-        return new OrderItem({
-          order_id:
-            order.order_id,
-
-          sku:
-            item.sku,
-
-          title:
-            item.title,
-
-          price:
-            item.price,
-
-          quantity:
-            item.quantity,
-
-          subtotal:
-            item.price * item.quantity
-        });
-
-      });
-
-
-    const subtotal =
-      items.reduce(
-        (sum, item) => sum + item.subtotal,
-        0
-      );
-
-
-    order.subtotal =
-      subtotal;
-
-    order.total =
-      subtotal;
-
-
-    return {
-      order,
-      items
-    };
+    return { order, items };
   }
 
-
   async saveOrder(data = {}) {
-
-    const result =
-      this.createOrder(data);
-
+    const result = this.createOrder(data);
 
     if (!this.repository) {
-
       return result;
     }
 
-
-    return this.repository.save(
+    await this.repository.save(
       result.order,
       result.items
     );
+
+    // CMS returns an acknowledgement rather than the full canonical entity.
+    // Core remains the source of the generated order_id/timestamp/totals.
+    return result;
   }
-
 }
-
 
 export {
   OrderService
