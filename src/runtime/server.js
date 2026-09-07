@@ -150,6 +150,8 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && request.url === "/api/orders") {
+      console.log("PREVIA HTTP request POST /api/orders");
+
       const body = await readJsonBody(request);
 
       const result = await orderHttpHandler.create({
