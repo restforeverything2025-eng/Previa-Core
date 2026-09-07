@@ -63,6 +63,40 @@ const orderHttpHandler = new OrderHttpHandler(
   identityVerifier
 );
 
+function getAllowedOrigin(request) {
+  const origin = request.headers.origin;
+  if (!origin) return null;
+
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname.toLowerCase();
+
+    // Allow the deployed PREVIA web app and local development origins.
+    if (
+      hostname === "restforeverything2025-eng.github.io" ||
+      hostname === "localhost" ||
+      hostname === "127.0.0.1"
+    ) {
+      return origin;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function applyCors(request, response) {
+  const allowedOrigin = getAllowedOrigin(request);
+  if (allowedOrigin) {
+    response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+    response.setHeader("Vary", "Origin");
+  }
+
+  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
 function readJsonBody(request) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -107,6 +141,13 @@ function sendJson(response, status, body) {
 
 const server = http.createServer(async (request, response) => {
   try {
+    applyCors(request, response);
+
+    if (request.method === "OPTIONS" && request.url === "/api/orders") {
+      sendJson(response, 204, {});
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/api/orders") {
       const body = await readJsonBody(request);
 
