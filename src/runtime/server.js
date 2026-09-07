@@ -71,8 +71,9 @@ function getAllowedOrigin(request) {
     const url = new URL(origin);
     const hostname = url.hostname.toLowerCase();
 
-    // Allow the deployed PREVIA web app and local development origins.
     if (
+      hostname === "previa-vintage.shop" ||
+      hostname === "www.previa-vintage.shop" ||
       hostname === "restforeverything2025-eng.github.io" ||
       hostname === "localhost" ||
       hostname === "127.0.0.1"
@@ -104,7 +105,6 @@ function readJsonBody(request) {
     request.on("data", chunk => {
       body += chunk;
 
-      // Protect the public endpoint from unexpectedly large request bodies.
       if (Buffer.byteLength(body, "utf8") > 1024 * 1024) {
         reject(Object.assign(
           new Error("Request body is too large"),
@@ -144,7 +144,8 @@ const server = http.createServer(async (request, response) => {
     applyCors(request, response);
 
     if (request.method === "OPTIONS" && request.url === "/api/orders") {
-      sendJson(response, 204, {});
+      response.writeHead(204);
+      response.end();
       return;
     }
 
