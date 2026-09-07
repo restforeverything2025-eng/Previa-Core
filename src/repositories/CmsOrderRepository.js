@@ -8,7 +8,7 @@
  * ============================================================
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { OrderRepository } from "./OrderRepository.js";
 import { createHmacEnvelope } from "../utils/HmacUtils.js";
 
@@ -28,13 +28,24 @@ class CmsOrderRepository extends OrderRepository {
   }
 
   async save(order, items) {
+    const requestId = randomUUID();
     const envelope = createHmacEnvelope(
       "order.create",
       { order, items },
       this.hmacSecret
     );
 
+    console.log("PREVIA CMS ORDER.CREATE START", {
+      request_id: requestId,
+      action: envelope.action,
+      payload_length: envelope.payload.length,
+      timestamp: envelope.auth.timestamp,
+      nonce_length: envelope.auth.nonce.length,
+      signature_length: envelope.auth.signature.length
+    });
+
     console.log("PREVIA CMS HMAC request", {
+      request_id: requestId,
       action: envelope.action,
       cms_url: this.cmsUrl,
       secret_length: String(this.hmacSecret || "").length,
@@ -45,13 +56,32 @@ class CmsOrderRepository extends OrderRepository {
       signature_length: envelope.auth.signature.length
     });
 
-    const response = await this._postToCms(envelope);
+    let response;
+    try {
+      response = await this._postToCms(envelope, requestId);
+    } catch (error) {
+      console.error("PREVIA CMS ORDER.CREATE ERROR", {
+        request_id: requestId,
+        code: error?.code || null,
+        message: error?.message || "CMS order creation failed"
+      });
+      throw error;
+    }
 
     console.log("PREVIA CMS response", {
+      request_id: requestId,
+      action: envelope.action,
       success: response?.success,
       code: response?.code || null,
       message: response?.message || null,
       has_order: Boolean(response?.order)
+    });
+
+    console.log("PREVIA CMS ORDER.CREATE RESULT", {
+      request_id: requestId,
+      success: response?.success,
+      code: response?.code || null,
+      message: response?.message || null
     });
 
     if (!response || response.success !== true) {
@@ -73,13 +103,30 @@ class CmsOrderRepository extends OrderRepository {
   }
 
   async findById(orderId) {
+    const requestId = randomUUID();
     const envelope = createHmacEnvelope(
       "order.find",
       { order_id: orderId },
       this.hmacSecret
     );
 
-    const response = await this._postToCms(envelope);
+    console.log("PREVIA CMS ORDER.FIND START", {
+      request_id: requestId,
+      action: envelope.action,
+      payload_length: envelope.payload.length,
+      timestamp: envelope.auth.timestamp,
+      nonce_length: envelope.auth.nonce.length,
+      signature_length: envelope.auth.signature.length
+    });
+
+    const response = await this._postToCms(envelope, requestId);
+
+    console.log("PREVIA CMS ORDER.FIND RESULT", {
+      request_id: requestId,
+      success: response?.success,
+      code: response?.code || null,
+      has_order: Boolean(response?.order)
+    });
 
     if (response === null || response?.success === true && !response.order) {
       return null;
@@ -101,7 +148,7 @@ class CmsOrderRepository extends OrderRepository {
     };
   }
 
-  async _postToCms(envelope) {
+  async _postToCms(envelope, requestId = null) {
     if (this.transport) {
       return this.transport.post(envelope);
     }
@@ -116,9 +163,17 @@ class CmsOrderRepository extends OrderRepository {
     };
 
     try {
+      console.log("PREVIA CMS HTTP REQUEST", {
+        request_id: requestId,
+        action: envelope.action,
+        cms_url: this.cmsUrl
+      });
+
       const response = await fetch(this.cmsUrl, fetchOptions);
 
       console.log("PREVIA CMS HTTP response", {
+        request_id: requestId,
+        action: envelope.action,
         status: response.status,
         status_text: response.statusText,
         content_type: response.headers.get("content-type"),
