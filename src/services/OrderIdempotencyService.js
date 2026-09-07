@@ -32,6 +32,21 @@ function createDeterministicOrderId(provider, providerId, idempotencyKey) {
   return `ORD-${uuid}`;
 }
 
+function normalizeContactPreferences(value) {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item)).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 function ordersEquivalent(left, right) {
   if (!left || !right) return false;
 
@@ -51,8 +66,8 @@ function ordersEquivalent(left, right) {
     if (String(left[field] ?? "") !== String(right[field] ?? "")) return false;
   }
 
-  const leftPreferences = Array.isArray(left.contact_preferences) ? left.contact_preferences : [];
-  const rightPreferences = Array.isArray(right.contact_preferences) ? right.contact_preferences : [];
+  const leftPreferences = normalizeContactPreferences(left.contact_preferences);
+  const rightPreferences = normalizeContactPreferences(right.contact_preferences);
   if (JSON.stringify(leftPreferences) !== JSON.stringify(rightPreferences)) return false;
 
   const leftItems = Array.isArray(left.items) ? left.items : [];
