@@ -17,8 +17,14 @@ export * from "./repositories/index.js";
 // Utilities
 export * from "./utils/index.js";
 
+// Identity
+export * from "./Identity/index.js";
+
 // API
 export * from "./api/OrderEndpoint.js";
+
+// HTTP
+export * from "./http/OrderHttpHandler.js";
 
 // Constants
 export * from "./constants/index.js";

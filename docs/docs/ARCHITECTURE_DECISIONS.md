@@ -41,3 +41,17 @@ PREVIA evolves through small independent milestones.
 
 Status:
 Accepted
+
+ADR-007
+
+Order processing uses the validated App → Core → Telegram Identity → CMS → Google Sheets architecture.
+
+Status:
+Accepted
+
+The browser is untrusted. Core is the trust boundary for Telegram identity, product authority, canonical order construction, pricing, totals, idempotency, concurrency protection, and Core → CMS authentication.
+
+Repeated equivalent requests must return the existing canonical order without creating duplicate persistence records. Concurrent equivalent requests must converge on one persisted order.
+
+Reference:
+`docs/docs/ORDER_INTEGRATION_ARCHITECTURE.md`

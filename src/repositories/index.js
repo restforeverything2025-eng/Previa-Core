@@ -11,3 +11,4 @@ export * from "./MemoryOrderRepository.js";
 export * from "./CmsOrderRepository.js";
 export * from "./ProductRepository.js";
 export * from "./MemoryProductRepository.js";
+export * from "./CmsProductRepository.js";

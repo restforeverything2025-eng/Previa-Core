@@ -4,7 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "example": "node examples/basic.js",
-  "test:manual": "node tests/manual/product.test.js"
-}
+    "example": "node examples/basic.js",
+    "test:manual": "node tests/manual/product.test.js",
+    "test:order-runtime": "node tests/manual/order-runtime.test.js",
+    "test:telegram": "node tests/manual/telegram-identity.test.js",
+    "test:order-http": "node tests/manual/order-http.test.js",
+    "test:order-integration": "node tests/manual/order-integration.test.js",
+    "test:order-products": "node tests/manual/order-product-authority.test.js",
+    "test:order-idempotency": "node tests/manual/order-idempotency.test.js",
+    "test:order-concurrency": "node tests/manual/order-concurrency.test.js",
+    "test:orders": "npm run test:telegram && npm run test:order-http && npm run test:order-runtime && npm run test:order-products && npm run test:order-idempotency && npm run test:order-concurrency",
+    "start": "node src/runtime/server.js"
+  }
 }

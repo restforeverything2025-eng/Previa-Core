@@ -5,119 +5,172 @@
  * ============================================================
  *
  * Persists orders to Previa-CMS via HTTP + HMAC authentication.
- * Implements OrderRepository contract.
- *
- * Does NOT retry automatically.
- * Caller decides retry based on error.retryable.
- *
  * ============================================================
  */
 
+import { createHash, randomUUID } from "node:crypto";
 import { OrderRepository } from "./OrderRepository.js";
-import { createHmacEnvelope } from "../utils/HmacUtils.js";
+import {
+  createHmacEnvelope,
+  signingStringFingerprint
+} from "../utils/HmacUtils.js";
+
+function secretFingerprint(secret) {
+  return createHash("sha256")
+    .update(String(secret || ""), "utf8")
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function payloadFingerprint(payload) {
+  return createHash("sha256")
+    .update(String(payload || ""), "utf8")
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function createSigningString(action, timestamp, nonce, payload) {
+  return `v1\n${action}\n${timestamp}\n${nonce}\n${payload}`;
+}
 
 class CmsOrderRepository extends OrderRepository {
-  /**
-   * @param {string} cmsUrl - CMS endpoint URL
-   * @param {string} hmacSecret - HMAC secret for signing
-   * @param {Object|null} transport - Optional fake transport for testing
-   */
   constructor(cmsUrl, hmacSecret, transport = null) {
     super();
-
     this.cmsUrl = cmsUrl;
     this.hmacSecret = hmacSecret;
     this.transport = transport;
   }
 
-  /**
-   * Creates order in CMS.
-   *
-   * @param {Object} order
-   * @param {Array} items
-   * @returns {Promise<{order, items}>}
-   */
   async save(order, items) {
+    const requestId = randomUUID();
     const envelope = createHmacEnvelope(
       "order.create",
       { order, items },
       this.hmacSecret
     );
+    const signingString = createSigningString(
+      envelope.action,
+      envelope.auth.timestamp,
+      envelope.auth.nonce,
+      envelope.payload
+    );
 
-    const response = await this._postToCms(envelope);
+    console.log("PREVIA CMS ORDER.CREATE START", {
+      request_id: requestId,
+      action: envelope.action,
+      payload_length: envelope.payload.length,
+      payload_fingerprint: payloadFingerprint(envelope.payload),
+      signing_string_fingerprint: signingStringFingerprint(signingString),
+      timestamp: envelope.auth.timestamp,
+      nonce_length: envelope.auth.nonce.length,
+      signature_length: envelope.auth.signature.length
+    });
 
-    // CMS returns structured error responses with success=false.
-    if (response && response.success === false) {
-      const error = new Error(
-        response.message || response.code || "CMS order creation failed"
-      );
+    console.log("PREVIA CMS HMAC request", {
+      request_id: requestId,
+      action: envelope.action,
+      cms_url: this.cmsUrl,
+      secret_length: String(this.hmacSecret || "").length,
+      secret_fingerprint: secretFingerprint(this.hmacSecret),
+      payload_length: envelope.payload.length,
+      payload_fingerprint: payloadFingerprint(envelope.payload),
+      signing_string_fingerprint: signingStringFingerprint(signingString),
+      timestamp: envelope.auth.timestamp,
+      nonce_length: envelope.auth.nonce.length,
+      signature_length: envelope.auth.signature.length
+    });
 
-      error.code = response.code;
-      error.retryable = response.retryable || false;
-
+    let response;
+    try {
+      response = await this._postToCms(envelope, requestId);
+    } catch (error) {
+      console.error("PREVIA CMS ORDER.CREATE ERROR", {
+        request_id: requestId,
+        code: error?.code || null,
+        message: error?.message || "CMS order creation failed"
+      });
       throw error;
     }
 
-    // Successful order.create response contains persisted order and items.
+    console.log("PREVIA CMS response", {
+      request_id: requestId,
+      action: envelope.action,
+      success: response?.success,
+      code: response?.code || null,
+      message: response?.message || null,
+      has_order: Boolean(response?.order)
+    });
+
+    console.log("PREVIA CMS ORDER.CREATE RESULT", {
+      request_id: requestId,
+      success: response?.success,
+      code: response?.code || null,
+      message: response?.message || null
+    });
+
+    if (!response || response.success !== true) {
+      const error = new Error(
+        response?.message || response?.code || "CMS order creation failed"
+      );
+      error.code = response?.code || "PERSISTENCE_ERROR";
+      error.retryable = response?.retryable || false;
+      error.details = response?.errors || response?.details || [];
+      throw error;
+    }
+
     return {
-      order: response.order,
-      items: response.items
+      order,
+      items
     };
   }
 
-  /**
-   * Finds order by ID in CMS.
-   *
-   * CMS contract:
-   * - { order, items } when found
-   * - null when not found
-   * - { success:false, code:..., ... } on error
-   *
-   * @param {string} orderId
-   * @returns {Promise<{order, items}|null>}
-   */
   async findById(orderId) {
+    const requestId = randomUUID();
     const envelope = createHmacEnvelope(
       "order.find",
       { order_id: orderId },
       this.hmacSecret
     );
 
-    const response = await this._postToCms(envelope);
+    console.log("PREVIA CMS ORDER.FIND START", {
+      request_id: requestId,
+      action: envelope.action,
+      payload_length: envelope.payload.length,
+      timestamp: envelope.auth.timestamp,
+      nonce_length: envelope.auth.nonce.length,
+      signature_length: envelope.auth.signature.length
+    });
 
-    // CMS returns null when order is not found.
-    if (response === null) {
+    const response = await this._postToCms(envelope, requestId);
+
+    console.log("PREVIA CMS ORDER.FIND RESULT", {
+      request_id: requestId,
+      success: response?.success,
+      code: response?.code || null,
+      has_order: Boolean(response?.order)
+    });
+
+    if (response === null || response?.success === true && !response.order) {
       return null;
     }
 
-    // CMS returns structured error responses with success=false.
     if (response && response.success === false) {
       const error = new Error(
         response.message || response.code || "CMS order lookup failed"
       );
-
-      error.code = response.code;
+      error.code = response.code || "PERSISTENCE_ERROR";
       error.retryable = response.retryable || false;
-
+      error.details = response.errors || response.details || [];
       throw error;
     }
 
-    // Successful order.find response is { order, items }.
     return {
       order: response.order,
-      items: response.items
+      items: response.items || []
     };
   }
 
-  /**
-   * Posts signed envelope to CMS.
-   *
-   * @private
-   * @param {Object} envelope
-   * @returns {Promise<Object|null>}
-   */
-  async _postToCms(envelope) {
-    // Fake transport is used by manual tests.
+  async _postToCms(envelope, requestId = null) {
     if (this.transport) {
       return this.transport.post(envelope);
     }
@@ -132,22 +185,40 @@ class CmsOrderRepository extends OrderRepository {
     };
 
     try {
+      console.log("PREVIA CMS HTTP REQUEST", {
+        request_id: requestId,
+        action: envelope.action,
+        cms_url: this.cmsUrl
+      });
+
       const response = await fetch(this.cmsUrl, fetchOptions);
 
+      console.log("PREVIA CMS HTTP response", {
+        request_id: requestId,
+        action: envelope.action,
+        status: response.status,
+        status_text: response.statusText,
+        content_type: response.headers.get("content-type"),
+        location_present: Boolean(response.headers.get("location"))
+      });
+
       if (!response.ok) {
-        throw new Error(
+        const error = new Error(
           `CMS HTTP ${response.status}: ${response.statusText}`
         );
+        error.code = "PERSISTENCE_ERROR";
+        error.retryable = response.status >= 500;
+        throw error;
       }
 
       const contentType = response.headers.get("content-type");
 
       if (!contentType || !contentType.includes("application/json")) {
         const text = await response.text();
-
-        throw new Error(
-          `CMS returned non-JSON: ${text}`
-        );
+        const error = new Error(`CMS returned non-JSON: ${text}`);
+        error.code = "PERSISTENCE_ERROR";
+        error.retryable = true;
+        throw error;
       }
 
       return await response.json();
@@ -156,10 +227,8 @@ class CmsOrderRepository extends OrderRepository {
         const timeoutError = new Error(
           "CMS_TIMEOUT: Request exceeded 10 seconds"
         );
-
         timeoutError.code = "CMS_TIMEOUT";
         timeoutError.retryable = true;
-
         throw timeoutError;
       }
 

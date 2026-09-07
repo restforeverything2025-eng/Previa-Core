@@ -1,153 +1,117 @@
 /**
- * ============================================================
- * PREVIA Core
- * Order Service
- * ============================================================
- *
- * Handles Order creation and preparation.
- *
- * Does not know about:
- * - Google Sheets
- * - Telegram
- * - payments
- * - reservations
- * - notifications
- * ============================================================
+ * PREVIA Core - Order Service
+ * Handles canonical order creation and persistence.
  */
 
-import { randomUUID } from "crypto";
-
-import {
-  Order,
-  OrderItem
-} from "../domain/index.js";
-
-import {
-  validate
-} from "./ValidationService.js";
-
-import {
-  ORDER_DEFAULTS
-} from "../constants/OrderDefaults.js";
-
+import { Order, OrderItem } from "../domain/index.js";
+import { validate } from "./ValidationService.js";
+import { ORDER_DEFAULTS } from "../constants/OrderDefaults.js";
+import { createDeterministicOrderId, validateIdempotencyKey, ordersEquivalent } from "./OrderIdempotencyService.js";
 
 class OrderService {
-
-  constructor(repository = null) {
-
+  constructor(repository = null, productEnrichmentService = null) {
     this.repository = repository;
+    this.productEnrichmentService = productEnrichmentService;
   }
 
-
-
-  createOrder(data = {}) {
-
-    const errors =
-      validate("order", data);
-
-    if (errors.length > 0) {
-
-      throw new Error(
-        "Order validation failed: " +
-        errors.join(", ")
-      );
-
+  async createOrder(data = {}) {
+    if (this.productEnrichmentService) {
+      data = {
+        ...data,
+        items: await this.productEnrichmentService.enrichItems(data.items)
+      };
     }
 
-    // Generate server-side order_id (ORD-<UUIDv4>)
-    const orderId = "ORD-" + randomUUID();
+    const errors = validate("order", data);
+    if (errors.length > 0) {
+      const error = new Error("Order validation failed: " + errors.join(", "));
+      error.code = "VALIDATION_ERROR";
+      error.retryable = false;
+      error.details = errors;
+      throw error;
+    }
 
-    // Generate server-side created_at (ISO 8601 UTC)
+    const keyError = validateIdempotencyKey(data.idempotency_key);
+    if (keyError) {
+      const error = new Error(keyError);
+      error.code = "VALIDATION_ERROR";
+      error.retryable = false;
+      error.details = [keyError];
+      throw error;
+    }
+
+    const orderId = createDeterministicOrderId(data.provider, data.providerId, data.idempotency_key);
+
+    if (this.repository) {
+      const existing = await this.repository.findById(orderId);
+      if (existing) {
+        return this._resolveExistingOrder(existing, data);
+      }
+    }
+
     const createdAt = new Date().toISOString();
+    const order = new Order({
+      ...data,
+      order_id: orderId,
+      created_at: createdAt,
+      source: ORDER_DEFAULTS.source,
+      payment_type: ORDER_DEFAULTS.payment_type,
+      order_status: ORDER_DEFAULTS.order_status,
+      payment_status: ORDER_DEFAULTS.payment_status
+    });
 
-    // Create Order with server-generated values and defaults
-    const order =
-      new Order({
-        ...data,
+    const items = data.items.map(item => new OrderItem({
+      order_id: order.order_id,
+      sku: item.sku,
+      title: item.title,
+      price: item.price,
+      quantity: item.quantity,
+      subtotal: item.price * item.quantity
+    }));
 
-        order_id: orderId,
+    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+    order.subtotal = subtotal;
+    order.total = subtotal;
 
-        created_at: createdAt,
-
-        // Enforce defaults (app cannot override)
-        source: ORDER_DEFAULTS.source,
-
-        payment_type: ORDER_DEFAULTS.payment_type,
-
-        order_status: ORDER_DEFAULTS.order_status,
-
-        payment_status: ORDER_DEFAULTS.payment_status
-      });
-
-
-    const items =
-      (data.items || []).map(item => {
-
-        return new OrderItem({
-          order_id:
-            order.order_id,
-
-          sku:
-            item.sku,
-
-          title:
-            item.title,
-
-          price:
-            item.price,
-
-          quantity:
-            item.quantity,
-
-          subtotal:
-            item.price * item.quantity
-        });
-
-      });
-
-
-    const subtotal =
-      items.reduce(
-        (sum, item) => sum + item.subtotal,
-        0
-      );
-
-
-    order.subtotal =
-      subtotal;
-
-    order.total =
-      subtotal;
-
-
-    return {
-      order,
-      items
-    };
+    return { order, items, idempotent: false };
   }
-
 
   async saveOrder(data = {}) {
+    const result = await this.createOrder(data);
+    if (!this.repository || result.idempotent) return result;
 
-    const result =
-      this.createOrder(data);
-
-
-    if (!this.repository) {
-
+    try {
+      await this.repository.save(result.order, result.items);
       return result;
+    } catch (saveError) {
+      // A concurrent request may have persisted the same deterministic order
+      // between createOrder()'s findById() and this save(). Recover by reading
+      // the canonical order and treating the request as an idempotent retry.
+      const existing = await this.repository.findById(result.order.order_id);
+      if (!existing) throw saveError;
+      return this._resolveExistingOrder(existing, {
+        ...data,
+        items: result.items
+      });
     }
-
-
-    return this.repository.save(
-      result.order,
-      result.items
-    );
   }
 
+  _resolveExistingOrder(existing, requestedData) {
+    const existingComparable = {
+      ...existing.order,
+      items: existing.items
+    };
+
+    if (!ordersEquivalent(existingComparable, requestedData)) {
+      const error = new Error("Idempotency key was already used for a different order");
+      error.code = "IDEMPOTENCY_CONFLICT";
+      error.retryable = false;
+      error.details = ["idempotency_key already belongs to another order"];
+      throw error;
+    }
+
+    return { order: existing.order, items: existing.items, idempotent: true };
+  }
 }
 
-
-export {
-  OrderService
-};
+export { OrderService };
