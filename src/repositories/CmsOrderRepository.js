@@ -19,6 +19,13 @@ function secretFingerprint(secret) {
     .slice(0, 16);
 }
 
+function payloadFingerprint(payload) {
+  return createHash("sha256")
+    .update(String(payload || ""), "utf8")
+    .digest("hex")
+    .slice(0, 16);
+}
+
 class CmsOrderRepository extends OrderRepository {
   constructor(cmsUrl, hmacSecret, transport = null) {
     super();
@@ -39,6 +46,7 @@ class CmsOrderRepository extends OrderRepository {
       request_id: requestId,
       action: envelope.action,
       payload_length: envelope.payload.length,
+      payload_fingerprint: payloadFingerprint(envelope.payload),
       timestamp: envelope.auth.timestamp,
       nonce_length: envelope.auth.nonce.length,
       signature_length: envelope.auth.signature.length
@@ -51,6 +59,7 @@ class CmsOrderRepository extends OrderRepository {
       secret_length: String(this.hmacSecret || "").length,
       secret_fingerprint: secretFingerprint(this.hmacSecret),
       payload_length: envelope.payload.length,
+      payload_fingerprint: payloadFingerprint(envelope.payload),
       timestamp: envelope.auth.timestamp,
       nonce_length: envelope.auth.nonce.length,
       signature_length: envelope.auth.signature.length
