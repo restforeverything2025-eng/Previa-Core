@@ -10,7 +10,7 @@
  * ============================================================
  */
 
-import { createHmac, randomBytes } from "crypto";
+import { createHash, createHmac, randomBytes } from "crypto";
 
 /**
  * Generates a cryptographically secure random nonce.
@@ -19,6 +19,13 @@ import { createHmac, randomBytes } from "crypto";
  */
 function generateNonce() {
   return randomBytes(32).toString("hex");
+}
+
+function signingStringFingerprint(value) {
+  return createHash("sha256")
+    .update(String(value || ""), "utf8")
+    .digest("hex")
+    .slice(0, 16);
 }
 
 /**
@@ -62,6 +69,8 @@ function createHmacEnvelope(action, payload, secret) {
   const timestamp = new Date().toISOString();
   const nonce = generateNonce();
   const payloadString = JSON.stringify(payload);
+  const signingString =
+    `v1\n${action}\n${timestamp}\n${nonce}\n${payloadString}`;
 
   const signature = generateHmacSignature(
     action,
@@ -79,7 +88,8 @@ function createHmacEnvelope(action, payload, secret) {
       key_id: "core-v1",
       timestamp,
       nonce,
-      signature
+      signature,
+      signing_string_fingerprint: signingStringFingerprint(signingString)
     }
   };
 }
@@ -87,5 +97,6 @@ function createHmacEnvelope(action, payload, secret) {
 export {
   generateNonce,
   generateHmacSignature,
-  createHmacEnvelope
+  createHmacEnvelope,
+  signingStringFingerprint
 };
