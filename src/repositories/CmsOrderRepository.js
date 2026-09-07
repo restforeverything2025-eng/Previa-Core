@@ -8,8 +8,16 @@
  * ============================================================
  */
 
+import { createHash } from "node:crypto";
 import { OrderRepository } from "./OrderRepository.js";
 import { createHmacEnvelope } from "../utils/HmacUtils.js";
+
+function secretFingerprint(secret) {
+  return createHash("sha256")
+    .update(String(secret || ""), "utf8")
+    .digest("hex")
+    .slice(0, 16);
+}
 
 class CmsOrderRepository extends OrderRepository {
   constructor(cmsUrl, hmacSecret, transport = null) {
@@ -26,7 +34,25 @@ class CmsOrderRepository extends OrderRepository {
       this.hmacSecret
     );
 
+    console.log("PREVIA CMS HMAC request", {
+      action: envelope.action,
+      cms_url: this.cmsUrl,
+      secret_length: String(this.hmacSecret || "").length,
+      secret_fingerprint: secretFingerprint(this.hmacSecret),
+      payload_length: envelope.payload.length,
+      timestamp: envelope.auth.timestamp,
+      nonce_length: envelope.auth.nonce.length,
+      signature_length: envelope.auth.signature.length
+    });
+
     const response = await this._postToCms(envelope);
+
+    console.log("PREVIA CMS response", {
+      success: response?.success,
+      code: response?.code || null,
+      message: response?.message || null,
+      has_order: Boolean(response?.order)
+    });
 
     if (!response || response.success !== true) {
       const error = new Error(
@@ -91,6 +117,13 @@ class CmsOrderRepository extends OrderRepository {
 
     try {
       const response = await fetch(this.cmsUrl, fetchOptions);
+
+      console.log("PREVIA CMS HTTP response", {
+        status: response.status,
+        status_text: response.statusText,
+        content_type: response.headers.get("content-type"),
+        location_present: Boolean(response.headers.get("location"))
+      });
 
       if (!response.ok) {
         const error = new Error(
