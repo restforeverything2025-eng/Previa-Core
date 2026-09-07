@@ -37,6 +37,14 @@ class OrderHttpHandler {
 
       const result = await this.orderEndpoint.create(orderData);
 
+      // Safe production diagnostic: log only the endpoint outcome.
+      // Never log Telegram initData, bot token, customer data, or order payload.
+      console.log("PREVIA order endpoint result", {
+        success: result?.success,
+        code: result?.code || null,
+        message: result?.message || null
+      });
+
       return { status: this._statusForResult(result), body: result };
     } catch (error) {
       const code = error.code || "INTERNAL_ERROR";
