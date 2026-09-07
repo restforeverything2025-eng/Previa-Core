@@ -40,6 +40,14 @@ class OrderHttpHandler {
       return { status: this._statusForResult(result), body: result };
     } catch (error) {
       const code = error.code || "INTERNAL_ERROR";
+
+      // Safe production diagnostic: never log Telegram initData, bot token,
+      // customer data, order payload, or other secrets.
+      console.error("PREVIA order request failed", {
+        code,
+        message: error.message || "Order operation failed"
+      });
+
       return {
         status: this._statusForCode(code),
         body: { success: false, code, retryable: error.retryable || false, message: error.message || "Order operation failed", ...(error.details ? { details: error.details } : {}) }
