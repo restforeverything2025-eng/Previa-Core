@@ -33,8 +33,12 @@ function generateHmacSignature(
   const message =
     `v1\n${action}\n${timestamp}\n${nonce}\n${payloadString}`;
 
-  const hmac = createHmac("sha256", secret);
-  hmac.update(message);
+  const hmac = createHmac(
+    "sha256",
+    Buffer.from(String(secret || ""), "utf8")
+  );
+
+  hmac.update(Buffer.from(message, "utf8"));
 
   return hmac.digest("hex");
 }
