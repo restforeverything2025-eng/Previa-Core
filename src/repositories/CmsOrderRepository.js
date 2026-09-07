@@ -10,7 +10,10 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { OrderRepository } from "./OrderRepository.js";
-import { createHmacEnvelope } from "../utils/HmacUtils.js";
+import {
+  createHmacEnvelope,
+  signingStringFingerprint
+} from "../utils/HmacUtils.js";
 
 function secretFingerprint(secret) {
   return createHash("sha256")
@@ -24,6 +27,10 @@ function payloadFingerprint(payload) {
     .update(String(payload || ""), "utf8")
     .digest("hex")
     .slice(0, 16);
+}
+
+function createSigningString(action, timestamp, nonce, payload) {
+  return `v1\n${action}\n${timestamp}\n${nonce}\n${payload}`;
 }
 
 class CmsOrderRepository extends OrderRepository {
@@ -41,12 +48,19 @@ class CmsOrderRepository extends OrderRepository {
       { order, items },
       this.hmacSecret
     );
+    const signingString = createSigningString(
+      envelope.action,
+      envelope.auth.timestamp,
+      envelope.auth.nonce,
+      envelope.payload
+    );
 
     console.log("PREVIA CMS ORDER.CREATE START", {
       request_id: requestId,
       action: envelope.action,
       payload_length: envelope.payload.length,
       payload_fingerprint: payloadFingerprint(envelope.payload),
+      signing_string_fingerprint: signingStringFingerprint(signingString),
       timestamp: envelope.auth.timestamp,
       nonce_length: envelope.auth.nonce.length,
       signature_length: envelope.auth.signature.length
@@ -60,6 +74,7 @@ class CmsOrderRepository extends OrderRepository {
       secret_fingerprint: secretFingerprint(this.hmacSecret),
       payload_length: envelope.payload.length,
       payload_fingerprint: payloadFingerprint(envelope.payload),
+      signing_string_fingerprint: signingStringFingerprint(signingString),
       timestamp: envelope.auth.timestamp,
       nonce_length: envelope.auth.nonce.length,
       signature_length: envelope.auth.signature.length
@@ -103,8 +118,6 @@ class CmsOrderRepository extends OrderRepository {
       throw error;
     }
 
-    // CMS intentionally returns an acknowledgement only.
-    // Core keeps the canonical generated order object.
     return {
       order,
       items
