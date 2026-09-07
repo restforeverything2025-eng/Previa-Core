@@ -22,14 +22,17 @@ class OrderHttpHandler {
       }
 
       const identity = this.identityVerifier.verify(body.telegram_init_data);
+      const {
+        telegram_init_data,
+        ...clientOrderData
+      } = body;
+
       const orderData = {
-        ...body.order,
+        ...clientOrderData,
         provider: identity.provider,
         providerId: identity.providerId,
         telegram_username: identity.telegram_username,
-        telegram_name: identity.telegram_name,
-        idempotency_key: body.idempotency_key,
-        items: body.items
+        telegram_name: identity.telegram_name
       };
 
       const result = await this.orderEndpoint.create(orderData);
