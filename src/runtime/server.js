@@ -17,13 +17,17 @@ import {
   ProductOrderEnrichmentService,
   OrderEndpoint,
   OrderHttpHandler,
-  TelegramIdentityVerifier
+  TelegramIdentityVerifier,
+  TelegramNotificationService
 } from "../index.js";
 
 const PORT = Number(process.env.PORT) || 3000;
 const CMS_URL = process.env.PREVIA_CMS_URL;
 const HMAC_SECRET = process.env.PREVIA_CORE_HMAC_SECRET;
 const TELEGRAM_BOT_TOKEN = process.env.PREVIA_TELEGRAM_BOT_TOKEN;
+const TELEGRAM_ADMIN_CHAT_ID = process.env.PREVIA_ADMIN_CHAT_ID;
+const TELEGRAM_THREAD_ID =
+  process.env.PREVIA_TELEGRAM_THREAD_ID || null;
 const TELEGRAM_INIT_DATA_MAX_AGE =
   Number(process.env.PREVIA_TELEGRAM_INIT_DATA_MAX_AGE_SECONDS) || 86400;
 
@@ -39,6 +43,12 @@ if (!TELEGRAM_BOT_TOKEN) {
   throw new Error("PREVIA_TELEGRAM_BOT_TOKEN environment variable is required");
 }
 
+if (!TELEGRAM_ADMIN_CHAT_ID) {
+  throw new Error(
+    "PREVIA_ADMIN_CHAT_ID environment variable is required"
+  );
+}
+
 const repository = new CmsOrderRepository(
   CMS_URL,
   HMAC_SECRET
@@ -49,9 +59,18 @@ const productEnrichmentService = new ProductOrderEnrichmentService(
   productRepository
 );
 
+const telegramNotificationService =
+  new TelegramNotificationService(
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_ADMIN_CHAT_ID,
+    null,
+    TELEGRAM_THREAD_ID
+  );
+
 const orderService = new OrderService(
   repository,
-  productEnrichmentService
+  productEnrichmentService,
+  telegramNotificationService
 );
 const orderEndpoint = new OrderEndpoint(orderService);
 const identityVerifier = new TelegramIdentityVerifier(

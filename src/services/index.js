@@ -13,3 +13,4 @@ export * from "./OrderValidator.js";
 export * from "./OrderService.js";
 export * from "./ProductService.js";
 export * from "./ProductOrderEnrichmentService.js";
+export * from "./TelegramNotificationService.js";

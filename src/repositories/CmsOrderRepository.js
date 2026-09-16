@@ -118,9 +118,15 @@ class CmsOrderRepository extends OrderRepository {
       throw error;
     }
 
+    const publicOrderNumber =
+      response?.public_order_number ||
+      response?.order?.public_order_number ||
+      null;
+
     return {
       order,
-      items
+      items,
+      public_order_number: publicOrderNumber
     };
   }
 
@@ -164,9 +170,15 @@ class CmsOrderRepository extends OrderRepository {
       throw error;
     }
 
+    const publicOrderNumber =
+      response?.public_order_number ||
+      response?.order?.public_order_number ||
+      null;
+
     return {
       order: response.order,
-      items: response.items || []
+      items: response.items || [],
+      public_order_number: publicOrderNumber
     };
   }
 
