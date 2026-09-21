@@ -5,6 +5,10 @@
  * ============================================================
  *
  * Production entry point for PREVIA Core.
+ *
+ * The browser is untrusted. Telegram identity is verified here,
+ * then Core resolves the canonical customer and delegates persistence
+ * to CMS repositories. Clients never receive CMS credentials.
  * ============================================================
  */
 
@@ -14,10 +18,17 @@ import {
   OrderService,
   CmsOrderRepository,
   CmsProductRepository,
+  CmsCustomerRepository,
+  CmsFavoritesRepository,
   ProductOrderEnrichmentService,
+  CustomerService,
+  FavoritesManager,
   OrderEndpoint,
+  CustomerEndpoint,
+  FavoritesEndpoint,
   OrderHttpHandler,
   TelegramIdentityVerifier,
+  TelegramLoginVerifier,
   TelegramNotificationService
 } from "../index.js";
 
@@ -26,10 +37,11 @@ const CMS_URL = process.env.PREVIA_CMS_URL;
 const HMAC_SECRET = process.env.PREVIA_CORE_HMAC_SECRET;
 const TELEGRAM_BOT_TOKEN = process.env.PREVIA_TELEGRAM_BOT_TOKEN;
 const TELEGRAM_ADMIN_CHAT_ID = process.env.PREVIA_ADMIN_CHAT_ID;
-const TELEGRAM_THREAD_ID =
-  process.env.PREVIA_TELEGRAM_THREAD_ID || null;
+const TELEGRAM_THREAD_ID = process.env.PREVIA_TELEGRAM_THREAD_ID || null;
 const TELEGRAM_INIT_DATA_MAX_AGE =
   Number(process.env.PREVIA_TELEGRAM_INIT_DATA_MAX_AGE_SECONDS) || 86400;
+const TELEGRAM_LOGIN_MAX_AGE =
+  Number(process.env.PREVIA_TELEGRAM_LOGIN_MAX_AGE_SECONDS) || 86400;
 
 if (!CMS_URL) {
   throw new Error("PREVIA_CMS_URL environment variable is required");
@@ -44,42 +56,51 @@ if (!TELEGRAM_BOT_TOKEN) {
 }
 
 if (!TELEGRAM_ADMIN_CHAT_ID) {
-  throw new Error(
-    "PREVIA_ADMIN_CHAT_ID environment variable is required"
-  );
+  throw new Error("PREVIA_ADMIN_CHAT_ID environment variable is required");
 }
 
-const repository = new CmsOrderRepository(
-  CMS_URL,
-  HMAC_SECRET
-);
-
+const orderRepository = new CmsOrderRepository(CMS_URL, HMAC_SECRET);
 const productRepository = new CmsProductRepository(CMS_URL);
+const customerRepository = new CmsCustomerRepository(CMS_URL, HMAC_SECRET);
+const favoritesRepository = new CmsFavoritesRepository(CMS_URL, HMAC_SECRET);
+
 const productEnrichmentService = new ProductOrderEnrichmentService(
   productRepository
 );
 
-const telegramNotificationService =
-  new TelegramNotificationService(
-    TELEGRAM_BOT_TOKEN,
-    TELEGRAM_ADMIN_CHAT_ID,
-    null,
-    TELEGRAM_THREAD_ID
-  );
+const customerService = new CustomerService(customerRepository);
+const favoritesManager = new FavoritesManager(favoritesRepository);
+
+const telegramNotificationService = new TelegramNotificationService(
+  TELEGRAM_BOT_TOKEN,
+  TELEGRAM_ADMIN_CHAT_ID,
+  null,
+  TELEGRAM_THREAD_ID
+);
 
 const orderService = new OrderService(
-  repository,
+  orderRepository,
   productEnrichmentService,
   telegramNotificationService
 );
+
 const orderEndpoint = new OrderEndpoint(orderService);
-const identityVerifier = new TelegramIdentityVerifier(
+const customerEndpoint = new CustomerEndpoint(customerService);
+const favoritesEndpoint = new FavoritesEndpoint(favoritesManager);
+
+const telegramIdentityVerifier = new TelegramIdentityVerifier(
   TELEGRAM_BOT_TOKEN,
   TELEGRAM_INIT_DATA_MAX_AGE
 );
+
+const telegramLoginVerifier = new TelegramLoginVerifier(
+  TELEGRAM_BOT_TOKEN,
+  TELEGRAM_LOGIN_MAX_AGE
+);
+
 const orderHttpHandler = new OrderHttpHandler(
   orderEndpoint,
-  identityVerifier
+  telegramIdentityVerifier
 );
 
 function getAllowedOrigin(request) {
@@ -108,6 +129,7 @@ function getAllowedOrigin(request) {
 
 function applyCors(request, response) {
   const allowedOrigin = getAllowedOrigin(request);
+
   if (allowedOrigin) {
     response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     response.setHeader("Vary", "Origin");
@@ -158,28 +180,144 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
+function authenticateClient(body) {
+  if (body && typeof body.telegram_init_data === "string") {
+    return telegramIdentityVerifier.verify(body.telegram_init_data);
+  }
+
+  if (body && body.telegram_login && typeof body.telegram_login === "object") {
+    return telegramLoginVerifier.verify(body.telegram_login);
+  }
+
+  const error = new Error("Telegram authentication is required");
+  error.code = "AUTHENTICATION_ERROR";
+  error.retryable = false;
+  throw error;
+}
+
+function stripAuthentication(body) {
+  const {
+    telegram_init_data,
+    telegram_login,
+    ...data
+  } = body || {};
+
+  return data;
+}
+
+async function handleCustomerRequest(body) {
+  const identity = authenticateClient(body);
+  const data = stripAuthentication(body);
+
+  if (body.action === "customer.find") {
+    const customer = await customerEndpoint.find(identity);
+    return { success: true, customer };
+  }
+
+  if (body.action === "customer.getOrCreate") {
+    const customer = await customerEndpoint.getOrCreate({
+      ...identity,
+      displayName: identity.telegram_name,
+      username: identity.telegram_username
+    });
+    return { success: true, customer };
+  }
+
+  const error = new Error("Unknown customer action");
+  error.code = "VALIDATION_ERROR";
+  error.retryable = false;
+  throw error;
+}
+
+async function handleFavoritesRequest(body) {
+  const identity = authenticateClient(body);
+  const customer = await customerEndpoint.getOrCreate({
+    ...identity,
+    displayName: identity.telegram_name,
+    username: identity.telegram_username
+  });
+
+  const data = stripAuthentication(body);
+  const customerId = customer.customerId;
+
+  if (body.action === "favorites.get") {
+    const favorites = await favoritesEndpoint.getFavorites(customerId);
+    return { success: true, favorites };
+  }
+
+  if (body.action === "favorites.add") {
+    const favorite = await favoritesEndpoint.addFavorite(
+      customerId,
+      data.productId
+    );
+    return { success: true, favorite };
+  }
+
+  if (body.action === "favorites.remove") {
+    const removed = await favoritesEndpoint.removeFavorite(
+      customerId,
+      data.productId
+    );
+    return { success: true, removed };
+  }
+
+  if (body.action === "favorites.sync") {
+    const favorites = await favoritesEndpoint.syncFavorites(
+      customerId,
+      data.productIds
+    );
+    return { success: true, favorites };
+  }
+
+  const error = new Error("Unknown favorites action");
+  error.code = "VALIDATION_ERROR";
+  error.retryable = false;
+  throw error;
+}
+
 const server = http.createServer(async (request, response) => {
   try {
     applyCors(request, response);
 
-    if (request.method === "OPTIONS" && request.url === "/api/orders") {
+    if (
+      request.method === "OPTIONS" &&
+      [
+        "/api/orders",
+        "/api/customer",
+        "/api/favorites"
+      ].includes(request.url)
+    ) {
       response.writeHead(204);
       response.end();
       return;
     }
 
-    if (request.method === "POST" && request.url === "/api/orders") {
-      console.log("PREVIA HTTP request POST /api/orders");
-
+    if (request.method === "POST") {
       const body = await readJsonBody(request);
 
-      const result = await orderHttpHandler.create({
-        method: request.method,
-        body
-      });
+      if (request.url === "/api/orders") {
+        console.log("PREVIA HTTP request POST /api/orders");
 
-      sendJson(response, result.status, result.body);
-      return;
+        const result = await orderHttpHandler.create({
+          method: request.method,
+          body
+        });
+
+        sendJson(response, result.status, result.body);
+        return;
+      }
+
+      if (request.url === "/api/customer") {
+        console.log("PREVIA HTTP request POST /api/customer");
+        sendJson(response, 200, await handleCustomerRequest(body));
+        return;
+      }
+
+      if (request.url === "/api/favorites") {
+        console.log("PREVIA HTTP request POST /api/favorites");
+        sendJson(response, 200, await handleFavoritesRequest(body));
+        return;
+      }
     }
 
     sendJson(response, 404, {
@@ -196,12 +334,23 @@ const server = http.createServer(async (request, response) => {
       ? 400
       : code === "PAYLOAD_TOO_LARGE"
         ? 413
-        : 500;
+        : code === "AUTHENTICATION_ERROR"
+          ? 401
+          : code === "VALIDATION_ERROR"
+            ? 400
+            : code === "PERSISTENCE_ERROR"
+              ? 502
+              : 500;
+
+    console.error("PREVIA HTTP request failed", {
+      code,
+      message: error.message || "Internal server error"
+    });
 
     sendJson(response, status, {
       success: false,
       code,
-      retryable: false,
+      retryable: error.retryable || false,
       message: error.message || "Internal server error"
     });
   }

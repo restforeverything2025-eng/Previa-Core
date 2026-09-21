@@ -22,6 +22,8 @@ export * from "./Identity/index.js";
 
 // API
 export * from "./api/OrderEndpoint.js";
+export * from "./api/CustomerEndpoint.js";
+export * from "./api/FavoritesEndpoint.js";
 
 // HTTP
 export * from "./http/OrderHttpHandler.js";
