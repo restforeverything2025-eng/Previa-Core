@@ -9,9 +9,14 @@ import { ORDER_DEFAULTS } from "../constants/OrderDefaults.js";
 import { createDeterministicOrderId, validateIdempotencyKey, ordersEquivalent } from "./OrderIdempotencyService.js";
 
 class OrderService {
-  constructor(repository = null, productEnrichmentService = null) {
+  constructor(
+    repository = null,
+    productEnrichmentService = null,
+    telegramNotificationService = null
+  ) {
     this.repository = repository;
     this.productEnrichmentService = productEnrichmentService;
+    this.telegramNotificationService = telegramNotificationService;
   }
 
   async createOrder(data = {}) {
@@ -80,10 +85,34 @@ class OrderService {
     const result = await this.createOrder(data);
     if (!this.repository || result.idempotent) return result;
 
-    try {
-      await this.repository.save(result.order, result.items);
-      return result;
-    } catch (saveError) {
+  try {
+    const saved = await this.repository.save(
+      result.order,
+      result.items
+    );
+
+    const finalResult = {
+      ...result,
+      public_order_number: saved.public_order_number || null
+    };
+
+    if (this.telegramNotificationService) {
+      try {
+        await this.telegramNotificationService.sendNewOrderNotification(
+          finalResult.order,
+          finalResult.items,
+          finalResult.public_order_number
+        );
+      } catch (telegramError) {
+        console.error(
+          "PREVIA Telegram notification failed:",
+          telegramError
+        );
+      }
+    }
+
+    return finalResult;
+  } catch (saveError) {
       // A concurrent request may have persisted the same deterministic order
       // between createOrder()'s findById() and this save(). Recover by reading
       // the canonical order and treating the request as an idempotent retry.
@@ -110,7 +139,12 @@ class OrderService {
       throw error;
     }
 
-    return { order: existing.order, items: existing.items, idempotent: true };
+    return {
+      order: existing.order,
+      items: existing.items,
+      idempotent: true,
+      public_order_number: existing.public_order_number || null
+    };
   }
 }
 
