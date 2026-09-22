@@ -4,9 +4,29 @@
  */
 
 class OrderHttpHandler {
-  constructor(orderEndpoint, identityVerifier = null) {
+  constructor(orderEndpoint, identityVerifier = null, oidcVerifier = null) {
     this.orderEndpoint = orderEndpoint;
     this.identityVerifier = identityVerifier;
+    this.oidcVerifier = oidcVerifier;
+  }
+
+  async _authenticate(body) {
+    if (body && typeof body.telegram_init_data === "string") {
+      if (!this.identityVerifier) throw Object.assign(new Error("Identity verifier is not configured"), { code: "INTERNAL_ERROR", retryable: false });
+      return await this.identityVerifier.verify(body.telegram_init_data);
+    }
+
+    if (body && typeof body.telegram_id_token === "string") {
+      if (!this.oidcVerifier) throw Object.assign(new Error("Telegram OIDC verifier is not configured"), { code: "INTERNAL_ERROR", retryable: false });
+      return await this.oidcVerifier.verify(body.telegram_id_token);
+    }
+
+    if (body && body.telegram_login && typeof body.telegram_login === "object") {
+      if (!this.identityVerifier) throw Object.assign(new Error("Identity verifier is not configured"), { code: "INTERNAL_ERROR", retryable: false });
+      return await this.identityVerifier.verify(body.telegram_login);
+    }
+
+    throw Object.assign(new Error("Telegram authentication is required"), { code: "AUTHENTICATION_ERROR", retryable: false });
   }
 
   async create(request = {}) {
@@ -17,13 +37,11 @@ class OrderHttpHandler {
     const body = request.body || {};
 
     try {
-      if (!this.identityVerifier) {
-        throw Object.assign(new Error("Identity verifier is not configured"), { code: "INTERNAL_ERROR", retryable: false });
-      }
-
-      const identity = this.identityVerifier.verify(body.telegram_init_data);
+      const identity = await this._authenticate(body);
       const {
         telegram_init_data,
+        telegram_login,
+        telegram_id_token,
         ...clientOrderData
       } = body;
 
@@ -37,8 +55,6 @@ class OrderHttpHandler {
 
       const result = await this.orderEndpoint.create(orderData);
 
-      // Safe production diagnostic: log only the endpoint outcome.
-      // Never log Telegram initData, bot token, customer data, or order payload.
       console.log("PREVIA order endpoint result", {
         success: result?.success,
         code: result?.code || null,
@@ -49,8 +65,6 @@ class OrderHttpHandler {
     } catch (error) {
       const code = error.code || "INTERNAL_ERROR";
 
-      // Safe production diagnostic: never log Telegram initData, bot token,
-      // customer data, order payload, or other secrets.
       console.error("PREVIA order request failed", {
         code,
         message: error.message || "Order operation failed"
