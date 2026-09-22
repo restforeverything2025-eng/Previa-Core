@@ -18,7 +18,11 @@ class OrderHttpHandler {
     }
     if (body && typeof body.telegram_id_token === "string") {
       if (!this.oidcVerifier) throw Object.assign(new Error("Telegram OIDC verifier is not configured"), { code: "INTERNAL_ERROR", retryable: false });
-      return await this.oidcVerifier.verify(body.telegram_id_token);
+      const options = {};
+      if (typeof body.telegram_oidc_nonce === "string" && body.telegram_oidc_nonce.trim()) {
+        options.nonce = body.telegram_oidc_nonce;
+      }
+      return await this.oidcVerifier.verify(body.telegram_id_token, options);
     }
     if (body && body.telegram_login && typeof body.telegram_login === "object") {
       if (!this.loginVerifier) throw Object.assign(new Error("Telegram Login verifier is not configured"), { code: "INTERNAL_ERROR", retryable: false });
@@ -34,7 +38,7 @@ class OrderHttpHandler {
     const body = request.body || {};
     try {
       const identity = await this._authenticate(body);
-      const { telegram_init_data, telegram_login, telegram_id_token, ...clientOrderData } = body;
+      const { telegram_init_data, telegram_login, telegram_id_token, telegram_oidc_nonce, ...clientOrderData } = body;
       const orderData = { ...clientOrderData, provider: identity.provider, providerId: identity.providerId, telegram_username: identity.telegram_username, telegram_name: identity.telegram_name };
       const result = await this.orderEndpoint.create(orderData);
       console.log("PREVIA order endpoint result", { success: result?.success, code: result?.code || null, message: result?.message || null });

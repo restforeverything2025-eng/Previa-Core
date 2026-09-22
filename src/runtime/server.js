@@ -120,7 +120,11 @@ async function authenticateClient(body) {
     return telegramIdentityVerifier.verify(body.telegram_init_data);
   }
   if (body && typeof body.telegram_id_token === "string") {
-    return telegramOidcVerifier.verify(body.telegram_id_token);
+    const options = {};
+    if (typeof body.telegram_oidc_nonce === "string" && body.telegram_oidc_nonce.trim()) {
+      options.nonce = body.telegram_oidc_nonce;
+    }
+    return telegramOidcVerifier.verify(body.telegram_id_token, options);
   }
   if (body && body.telegram_login && typeof body.telegram_login === "object") {
     return telegramLoginVerifier.verify(body.telegram_login);
@@ -129,7 +133,7 @@ async function authenticateClient(body) {
 }
 
 function stripAuthentication(body) {
-  const { telegram_init_data, telegram_login, telegram_id_token, ...data } = body || {};
+  const { telegram_init_data, telegram_login, telegram_id_token, telegram_oidc_nonce, ...data } = body || {};
   return data;
 }
 
