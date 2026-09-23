@@ -1,8 +1,10 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 
 import {
   OrderService,
   CmsOrderRepository,
+  CmsProductRepository,
+  ProductOrderEnrichmentService,
   OrderEndpoint,
   OrderHttpHandler,
   TelegramIdentityVerifier
@@ -11,6 +13,7 @@ import {
 const cmsUrl = process.env.PREVIA_CMS_URL;
 const hmacSecret = process.env.PREVIA_CORE_HMAC_SECRET;
 const telegramBotToken = process.env.PREVIA_TELEGRAM_BOT_TOKEN;
+const integrationSku = process.env.PREVIA_INTEGRATION_SKU;
 
 if (!cmsUrl) {
   throw new Error("PREVIA_CMS_URL is not set");
@@ -24,10 +27,16 @@ if (!telegramBotToken) {
   throw new Error("PREVIA_TELEGRAM_BOT_TOKEN is not set");
 }
 
+if (!integrationSku) {
+  throw new Error(
+    "PREVIA_INTEGRATION_SKU is not set. Set it to an existing AVAILABLE SKU before running this test."
+  );
+}
+
 function buildInitData(botToken) {
   const params = new URLSearchParams({
     auth_date: String(Math.floor(Date.now() / 1000)),
-    query_id: "AAH_PREVIA_INTEGRATION_TEST",
+    query_id: `PREVIA_INTEGRATION_${randomUUID()}`,
     user: JSON.stringify({
       id: 987654321,
       first_name: "PREVIA",
@@ -57,13 +66,13 @@ function buildInitData(botToken) {
 
 console.log("=== PREVIA Core → CMS Integration Test ===");
 console.log("CMS URL:", cmsUrl);
+console.log("Integration SKU:", integrationSku);
+console.log("WARNING: this test creates a real order and reserves the selected SKU.");
 
-const repository = new CmsOrderRepository(
-  cmsUrl,
-  hmacSecret
-);
-
-const service = new OrderService(repository);
+const orderRepository = new CmsOrderRepository(cmsUrl, hmacSecret);
+const productRepository = new CmsProductRepository(cmsUrl);
+const productEnrichmentService = new ProductOrderEnrichmentService(productRepository);
+const service = new OrderService(orderRepository, productEnrichmentService);
 const endpoint = new OrderEndpoint(service);
 const identityVerifier = new TelegramIdentityVerifier(telegramBotToken);
 const handler = new OrderHttpHandler(endpoint, identityVerifier);
@@ -73,18 +82,17 @@ const request = {
   url: "/api/orders",
   body: {
     telegram_init_data: buildInitData(telegramBotToken),
-    order: {
-      customer_name: "PREVIA Integration Test",
-      phone: "+380000000000",
-      email: "integration@test.previa",
-      contact_preferences: ["telegram"],
-      payment_method: "nova_poshta_prepayment"
-    },
+    idempotency_key: `integration-test-${randomUUID()}`,
+    customer_name: "PREVIA Integration Test",
+    phone: "+380000000000",
+    email: "integration@previa.local",
+    contact_preferences: ["telegram"],
+    payment_method: "nova_poshta_prepayment",
     items: [
       {
-        sku: "INTEGRATION-TEST",
-        title: "PREVIA Integration Test Product",
-        price: 1,
+        sku: integrationSku,
+        title: "CLIENT-SUPPLIED-TITLE-MUST-BE-IGNORED",
+        price: 0.01,
         quantity: 1
       }
     ]
@@ -105,9 +113,13 @@ if (!response.body?.success) {
 }
 
 console.log("");
-console.log("✓ Telegram identity verified");
-console.log("✓ Real request reached PREVIA-CMS");
-console.log("✓ Order created in CMS");
+console.log("✓ Public Core request uses the current flat order contract");
+console.log("✓ Telegram identity was verified");
+console.log("✓ Idempotency key was supplied by the client contract");
+console.log("✓ Product was resolved from authoritative CMS data");
+console.log("✓ Client-supplied title/price were not trusted");
+console.log("✓ Real HMAC request reached PREVIA-CMS");
+console.log("✓ Order was created in CMS");
 console.log("✓ Server generated order_id:", response.body.order_id);
 console.log("");
 console.log("ALL INTEGRATION TESTS PASSED");
