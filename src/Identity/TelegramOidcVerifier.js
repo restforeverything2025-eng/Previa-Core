@@ -43,10 +43,14 @@ function normalizeIdentity(claims) {
   if (claims.sub === undefined || claims.sub === null) {
     throw authenticationError("Telegram ID token subject is missing.");
   }
-  const name = claims.name || [claims.given_name, claims.family_name].filter(Boolean).join(" ") || String(claims.sub);
+  if (claims.id === undefined || claims.id === null || String(claims.id).trim() === "") {
+    throw authenticationError("Telegram ID token user id is missing.");
+  }
+  const providerId = String(claims.id);
+  const name = claims.name || [claims.given_name, claims.family_name].filter(Boolean).join(" ") || providerId;
   return {
     provider: "telegram",
-    providerId: String(claims.sub),
+    providerId,
     telegram_username: claims.preferred_username ? String(claims.preferred_username) : "",
     telegram_name: String(name)
   };
