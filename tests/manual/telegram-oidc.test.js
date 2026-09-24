@@ -17,7 +17,8 @@ const header = { alg: "RS256", typ: "JWT", kid };
 const claims = {
   iss: "https://oauth.telegram.org",
   aud: clientId,
-  sub: "123456789",
+  sub: "oidc-subject-123456789",
+  id: 123456789,
   iat: nowSeconds - 30,
   exp: nowSeconds + 300,
   nonce: "nonce-123",
@@ -71,6 +72,20 @@ const badToken = `${badInput}.${badSigner.sign(privateKey).toString("base64url")
 
 await assert.rejects(
   () => verifier.verify(badToken, { nowSeconds }),
+  error => error.code === "AUTHENTICATION_ERROR"
+);
+
+const missingTelegramIdClaims = { ...claims };
+delete missingTelegramIdClaims.id;
+const missingTelegramIdPayload = base64UrlJson(missingTelegramIdClaims);
+const missingTelegramIdInput = `${encodedHeader}.${missingTelegramIdPayload}`;
+const missingTelegramIdSigner = createSign("RSA-SHA256");
+missingTelegramIdSigner.update(missingTelegramIdInput);
+missingTelegramIdSigner.end();
+const missingTelegramIdToken = `${missingTelegramIdInput}.${missingTelegramIdSigner.sign(privateKey).toString("base64url")}`;
+
+await assert.rejects(
+  () => verifier.verify(missingTelegramIdToken, { nowSeconds, nonce: "nonce-123" }),
   error => error.code === "AUTHENTICATION_ERROR"
 );
 
