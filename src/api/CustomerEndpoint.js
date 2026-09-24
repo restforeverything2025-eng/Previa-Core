@@ -32,6 +32,17 @@ class CustomerEndpoint {
     );
   }
 
+  async findById(customerId) {
+    if (!customerId) {
+      throw Object.assign(new Error("Customer ID is required."), {
+        code: "VALIDATION_ERROR",
+        retryable: false
+      });
+    }
+
+    return this.customerService.findById(customerId);
+  }
+
   async getOrCreate(identity) {
     if (!identity || identity.provider === undefined || identity.providerId === undefined) {
       throw Object.assign(new Error("Customer identity is required."), {
