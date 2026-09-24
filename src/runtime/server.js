@@ -20,12 +20,16 @@ import {
   TelegramIdentityVerifier,
   TelegramLoginVerifier,
   TelegramOidcVerifier,
-  TelegramNotificationService
+  TelegramNotificationService,
+  createSessionToken,
+  verifySessionToken
 } from "../index.js";
 
 const PORT = Number(process.env.PORT) || 3000;
 const CMS_URL = process.env.PREVIA_CMS_URL;
 const HMAC_SECRET = process.env.PREVIA_CORE_HMAC_SECRET;
+const WEB_SESSION_SECRET = process.env.PREVIA_WEB_SESSION_SECRET || HMAC_SECRET;
+const WEB_SESSION_TTL_SECONDS = Number(process.env.PREVIA_WEB_SESSION_TTL_SECONDS) || 7 * 24 * 60 * 60;
 const TELEGRAM_BOT_TOKEN = process.env.PREVIA_TELEGRAM_BOT_TOKEN;
 const TELEGRAM_OIDC_CLIENT_ID = process.env.PREVIA_TELEGRAM_OIDC_CLIENT_ID || "8970735353";
 const TELEGRAM_ADMIN_CHAT_ID = process.env.PREVIA_ADMIN_CHAT_ID;
@@ -36,6 +40,7 @@ const TELEGRAM_OIDC_MAX_AGE = Number(process.env.PREVIA_TELEGRAM_OIDC_MAX_AGE_SE
 
 if (!CMS_URL) throw new Error("PREVIA_CMS_URL environment variable is required");
 if (!HMAC_SECRET) throw new Error("PREVIA_CORE_HMAC_SECRET environment variable is required");
+if (!WEB_SESSION_SECRET) throw new Error("PREVIA_WEB_SESSION_SECRET environment variable is required");
 if (!TELEGRAM_BOT_TOKEN) throw new Error("PREVIA_TELEGRAM_BOT_TOKEN environment variable is required");
 if (!TELEGRAM_ADMIN_CHAT_ID) throw new Error("PREVIA_ADMIN_CHAT_ID environment variable is required");
 if (!TELEGRAM_OIDC_CLIENT_ID) throw new Error("PREVIA_TELEGRAM_OIDC_CLIENT_ID environment variable is required");
@@ -116,6 +121,25 @@ function sendJson(response, status, body) {
 }
 
 async function authenticateClient(body) {
+  if (body && typeof body.telegram_session_token === "string") {
+    const session = verifySessionToken(body.telegram_session_token, WEB_SESSION_SECRET);
+    const customer = await customerEndpoint.findById(session.customerId);
+    if (!customer) {
+      throw Object.assign(new Error("Web session customer was not found."), {
+        code: "AUTHENTICATION_ERROR",
+        retryable: false
+      });
+    }
+    return {
+      provider: customer.provider,
+      providerId: customer.providerId,
+      telegram_username: customer.username || "",
+      telegram_name: customer.displayName || "",
+      customerId: customer.customerId,
+      sessionToken: body.telegram_session_token
+    };
+  }
+
   if (body && typeof body.telegram_init_data === "string") {
     return telegramIdentityVerifier.verify(body.telegram_init_data);
   }
@@ -133,15 +157,35 @@ async function authenticateClient(body) {
 }
 
 function stripAuthentication(body) {
-  const { telegram_init_data, telegram_login, telegram_id_token, telegram_oidc_nonce, ...data } = body || {};
+  const {
+    telegram_init_data,
+    telegram_login,
+    telegram_id_token,
+    telegram_oidc_nonce,
+    telegram_session_token,
+    ...data
+  } = body || {};
   return data;
+}
+
+function buildCustomerResponse(customer, sessionToken) {
+  return {
+    customer,
+    sessionToken
+  };
 }
 
 async function handleCustomerRequest(body) {
   const identity = await authenticateClient(body);
   if (body.action === "customer.find") {
-    const customer = await customerEndpoint.find(identity);
-    return { success: true, customer };
+    const customer = identity.customerId
+      ? await customerEndpoint.findById(identity.customerId)
+      : await customerEndpoint.find(identity);
+    if (!customer) return { success: true, customer: null, sessionToken: null };
+    const sessionToken = identity.sessionToken || createSessionToken(customer.customerId, WEB_SESSION_SECRET, {
+      ttlSeconds: WEB_SESSION_TTL_SECONDS
+    });
+    return { success: true, ...buildCustomerResponse(customer, sessionToken) };
   }
   if (body.action === "customer.getOrCreate") {
     const customer = await customerEndpoint.getOrCreate({
@@ -149,18 +193,31 @@ async function handleCustomerRequest(body) {
       displayName: identity.telegram_name,
       username: identity.telegram_username
     });
-    return { success: true, customer };
+    const sessionToken = identity.sessionToken || createSessionToken(customer.customerId, WEB_SESSION_SECRET, {
+      ttlSeconds: WEB_SESSION_TTL_SECONDS
+    });
+    return { success: true, ...buildCustomerResponse(customer, sessionToken) };
   }
   throw Object.assign(new Error("Unknown customer action"), { code: "VALIDATION_ERROR", retryable: false });
 }
 
 async function handleFavoritesRequest(body) {
   const identity = await authenticateClient(body);
-  const customer = await customerEndpoint.getOrCreate({
-    ...identity,
-    displayName: identity.telegram_name,
-    username: identity.telegram_username
-  });
+  const customer = identity.customerId
+    ? await customerEndpoint.findById(identity.customerId)
+    : await customerEndpoint.getOrCreate({
+      ...identity,
+      displayName: identity.telegram_name,
+      username: identity.telegram_username
+    });
+
+  if (!customer) {
+    throw Object.assign(new Error("Customer was not found."), {
+      code: "AUTHENTICATION_ERROR",
+      retryable: false
+    });
+  }
+
   const data = stripAuthentication(body);
   const customerId = customer.customerId;
   if (body.action === "favorites.get") return { success: true, favorites: await favoritesEndpoint.getFavorites(customerId) };
