@@ -18,6 +18,10 @@ class CustomerService {
     this.repository = repository;
   }
 
+  async findById(customerId) {
+    return this.repository.findById(customerId);
+  }
+
   async findByProvider(provider, providerId) {
     return this.repository.findByProvider(provider, providerId);
   }
