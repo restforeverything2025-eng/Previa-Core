@@ -16,6 +16,7 @@ export * from "./repositories/index.js";
 
 // Utilities
 export * from "./utils/index.js";
+export * from "./utils/SessionToken.js";
 
 // Identity
 export * from "./Identity/index.js";
